@@ -6,7 +6,7 @@ import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
 import { apiFetch } from '@/lib/api';
 import { formatDateTime } from '@/lib/dates';
-import { maquinaSubtitulo, maquinaTitulo } from '@/lib/maquina-display';
+import { maquinaDetalleLinea, maquinaNombrePrincipal } from '@/lib/maquina-display';
 import { AREA_LABELS, ESTADO_LABELS, TIPO_INTERVENCION_LABELS } from '@/lib/labels';
 
 const ESTADO_INTERVENCION_LABELS: Record<EstadoIntervencion, string> = {
@@ -100,16 +100,18 @@ export default function MisTrabajosPage() {
                   <div className="flex flex-wrap justify-between gap-2">
                     <div>
                       <h3 className="font-semibold text-lg">
-                        {t.maquina?.tipo && t.maquina?.marca
-                          ? maquinaTitulo({
-                              tipo: t.maquina.tipo,
-                              marca: t.maquina.marca,
-                            })
-                          : (t.maquina?.nombre ?? 'Máquina')}
+                        {t.maquina?.nombre
+                          ? maquinaNombrePrincipal({ nombre: t.maquina.nombre })
+                          : 'Máquina'}
                       </h3>
-                      {t.maquina?.modelo && (
-                        <p className="text-base font-medium text-[#1a1a1a]">
-                          {maquinaSubtitulo({ modelo: t.maquina.modelo })}
+                      {t.maquina && (
+                        <p className="text-base text-[#6c757d]">
+                          {maquinaDetalleLinea({
+                            tipo: t.maquina.tipo ?? '',
+                            marca: t.maquina.marca ?? '',
+                            modelo: t.maquina.modelo ?? '',
+                            anio: null,
+                          })}
                         </p>
                       )}
                       <p className="text-sm text-[#6c757d]">

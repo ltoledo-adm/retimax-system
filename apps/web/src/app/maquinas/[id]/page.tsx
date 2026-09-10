@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
-  AreaIntervencion,
   EmpleadoDto,
   EstadoIntervencion,
   EstadoMaquina,
@@ -15,12 +14,15 @@ import {
 import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
 import { AudioNoteRecorder } from '@/components/AudioNoteRecorder';
-import { EstadoPipeline } from '@/components/EstadoPipeline';
+import { DiagnosticoPanel } from '@/components/DiagnosticoPanel';
+import { EstadoPipeline, getPipelineForMaquina } from '@/components/EstadoPipeline';
+import { MantenimientoPanel } from '@/components/MantenimientoPanel';
+import { PreciosListaVentaPanel } from '@/components/PreciosListaVentaPanel';
 import { PhotoGallery } from '@/components/PhotoGallery';
 import { ImagePicker } from '@/components/ImagePicker';
 import { apiFetch } from '@/lib/api';
 import { formatDateTime } from '@/lib/dates';
-import { maquinaSubtitulo, maquinaTitulo } from '@/lib/maquina-display';
+import { maquinaDetalleLinea, maquinaNombrePrincipal } from '@/lib/maquina-display';
 import {
   AREA_LABELS,
   ESTADO_COLORS,
@@ -28,20 +30,10 @@ import {
   TIPO_INTERVENCION_LABELS,
 } from '@/lib/labels';
 
-const PIPELINE: EstadoMaquina[] = [
-  EstadoMaquina.COMPRADA_ITALIA,
-  EstadoMaquina.EN_TRANSITO,
-  EstadoMaquina.RECIBIDA,
-  EstadoMaquina.EN_DIAGNOSTICO,
-  EstadoMaquina.EN_MANTENIMIENTO,
-  EstadoMaquina.LISTA_PARA_VENTA,
-  EstadoMaquina.RESERVADA,
-  EstadoMaquina.VENDIDA,
-];
-
-function estadoAnteriorDe(estado: EstadoMaquina): EstadoMaquina | null {
-  const i = PIPELINE.indexOf(estado);
-  return i > 0 ? PIPELINE[i - 1] : null;
+function estadoAnteriorDe(estado: EstadoMaquina, esReserva?: boolean): EstadoMaquina | null {
+  const pipeline = getPipelineForMaquina(estado, esReserva);
+  const i = pipeline.indexOf(estado);
+  return i > 0 ? pipeline[i - 1] : null;
 }
 
 export default function MaquinaDetailPage() {
@@ -70,22 +62,8 @@ export default function MaquinaDetailPage() {
   const [recepcionDesc, setRecepcionDesc] = useState('');
   const [fotosLlegada, setFotosLlegada] = useState<File[]>([]);
 
-  const [diagMecanica, setDiagMecanica] = useState('');
-  const [diagElectrica, setDiagElectrica] = useState('');
-  const [diagPintado, setDiagPintado] = useState('');
-  const [diagMantenimiento, setDiagMantenimiento] = useState('');
-  const [diagMecanicaResp, setDiagMecanicaResp] = useState('');
-  const [diagElectricaResp, setDiagElectricaResp] = useState('');
-  const [diagPintadoResp, setDiagPintadoResp] = useState('');
-  const [diagMantenimientoResp, setDiagMantenimientoResp] = useState('');
-  const [requiereMantenimiento, setRequiereMantenimiento] = useState(true);
-
   const [precioCompraUsd, setPrecioCompraUsd] = useState('');
   const [precioVentaUsd, setPrecioVentaUsd] = useState('');
-
-  const [areaAsignar, setAreaAsignar] = useState<AreaIntervencion>(AreaIntervencion.MECANICA);
-  const [descAsignar, setDescAsignar] = useState('');
-  const [empleadoAsignarId, setEmpleadoAsignarId] = useState('');
 
   function syncForm(data: MaquinaDto) {
     setEditNombre(data.nombre);
@@ -131,14 +109,25 @@ export default function MaquinaDetailPage() {
 
   const estado = maquina?.estado;
   const acordada = maquina?.descripcionAcordada ?? maquina?.descripcionLlegada;
-  const estadoPrevio = estado ? estadoAnteriorDe(estado) : null;
+  const esReserva = maquina?.esReserva ?? maquina?.estado === EstadoMaquina.RESERVADA;
+  const estadoPrevio = estado ? estadoAnteriorDe(estado, esReserva) : null;
+
+  const asignacionesDiagnostico = useMemo(
+    () =>
+      maquina?.intervenciones?.filter(
+        (i) =>
+          i.tipo === TipoIntervencion.DIAGNOSTICO_INICIAL &&
+          i.estadoIntervencion !== EstadoIntervencion.CANCELADO,
+      ) ?? [],
+    [maquina?.intervenciones],
+  );
 
   const intervencionesMantenimiento = useMemo(
     () =>
       maquina?.intervenciones?.filter(
         (i) =>
-          i.tipo === TipoIntervencion.TRABAJO_REALIZADO ||
-          (i.tipo === TipoIntervencion.OBSERVACION_ADICIONAL && i.responsableId),
+          i.tipo === TipoIntervencion.TRABAJO_REALIZADO &&
+          i.estadoIntervencion !== EstadoIntervencion.CANCELADO,
       ) ?? [],
     [maquina?.intervenciones],
   );
@@ -224,84 +213,27 @@ export default function MaquinaDetailPage() {
     }
   }
 
-  async function handleCompletarDiagnostico(e: FormEvent) {
-    e.preventDefault();
-    setActionLoading(true);
+  async function savePrecio(compra: string, venta: string) {
     setError('');
-    try {
-      const areas = [
-        { text: diagMecanica, resp: diagMecanicaResp, key: 'mecanica' as const },
-        { text: diagElectrica, resp: diagElectricaResp, key: 'electrica' as const },
-        { text: diagPintado, resp: diagPintadoResp, key: 'pintado' as const },
-        { text: diagMantenimiento, resp: diagMantenimientoResp, key: 'mantenimiento' as const },
-      ];
-      for (const a of areas) {
-        if (a.text.trim() && !a.resp) {
-          setError('Cada área con observación debe tener un responsable asignado');
-          setActionLoading(false);
-          return;
-        }
-      }
-
-      await apiFetch(`/maquinas/${params.id}/diagnostico/completar`, {
-        method: 'POST',
-        body: JSON.stringify({
-          mecanica: diagMecanica.trim() || undefined,
-          mecanicaResponsableId: diagMecanica.trim() ? diagMecanicaResp : undefined,
-          electrica: diagElectrica.trim() || undefined,
-          electricaResponsableId: diagElectrica.trim() ? diagElectricaResp : undefined,
-          pintado: diagPintado.trim() || undefined,
-          pintadoResponsableId: diagPintado.trim() ? diagPintadoResp : undefined,
-          mantenimiento: diagMantenimiento.trim() || undefined,
-          mantenimientoResponsableId: diagMantenimiento.trim() ? diagMantenimientoResp : undefined,
-          requiereMantenimiento,
-        }),
-      });
-      setVolverAtras(false);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al completar diagnóstico');
-    } finally {
-      setActionLoading(false);
-    }
+    await apiFetch(`/maquinas/${params.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        precioCompraUsd: compra || undefined,
+        precioVentaUsd: venta || undefined,
+      }),
+    });
+    await load();
   }
 
-  async function savePrecio(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    try {
-      await apiFetch(`/maquinas/${params.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          precioCompraUsd: precioCompraUsd || undefined,
-          precioVentaUsd: precioVentaUsd || undefined,
-        }),
-      });
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar precio');
-    }
+  async function pasarListaParaVenta() {
+    await cambiarEstado(EstadoMaquina.LISTA_PARA_VENTA, 'Trabajo validado');
+    if (maquina) notifyListaParaVenta(maquina.nombre);
   }
 
-  async function asignarTrabajo(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    try {
-      await apiFetch(`/maquinas/${params.id}/intervenciones`, {
-        method: 'POST',
-        body: JSON.stringify({
-          tipo: TipoIntervencion.TRABAJO_REALIZADO,
-          area: areaAsignar,
-          descripcion: descAsignar,
-          responsableId: empleadoAsignarId,
-        }),
-      });
-      setDescAsignar('');
-      setEmpleadoAsignarId('');
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al asignar trabajo');
-    }
+  function notifyListaParaVenta(nombre: string) {
+    window.alert(
+      `La máquina "${nombre}" está lista para la venta. Puede pasar al módulo de Ventas para realizar la operación.`,
+    );
   }
 
   async function cambiarEstado(nuevoEstado: EstadoMaquina, motivo?: string) {
@@ -389,8 +321,8 @@ export default function MaquinaDetailPage() {
           <div className="rounded-xl bg-white border p-6 space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-bold">{maquinaTitulo(maquina)}</h2>
-                <p className="text-xl text-[#6c757d]">{maquinaSubtitulo(maquina)}</p>
+                <h2 className="text-2xl font-bold">{maquinaNombrePrincipal(maquina)}</h2>
+                <p className="text-lg text-[#6c757d]">{maquinaDetalleLinea(maquina)}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span
@@ -506,7 +438,16 @@ export default function MaquinaDetailPage() {
 
             <PhotoGallery imagenes={maquina.imagenes ?? []} title="Fotos de la máquina" />
 
-            {estado === EstadoMaquina.COMPRADA_ITALIA && (
+            {maquina.pedidoReserva && (
+              <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 text-sm">
+                <p className="font-medium">Reservada para: {maquina.pedidoReserva.clienteNombre}</p>
+                <p className="text-[#6c757d] mt-1">
+                  Total ${maquina.pedidoReserva.totalUsd} — Anticipo ${maquina.pedidoReserva.anticipoUsd} — Saldo ${maquina.pedidoReserva.saldoUsd}
+                </p>
+              </div>
+            )}
+
+            {(estado === EstadoMaquina.COMPRADA_ITALIA || estado === EstadoMaquina.RESERVADA) && (
               <>
                 <AudioNoteRecorder
                   maquinaId={maquina.id}
@@ -559,7 +500,7 @@ export default function MaquinaDetailPage() {
 
           {/* CUADRO 2 — Estado + acción del paso actual */}
           <div className="rounded-xl bg-white border p-5 space-y-4">
-            <EstadoPipeline estadoActual={estado} />
+            <EstadoPipeline estadoActual={estado} esReserva={esReserva} />
 
             {estadoPrevio && estado !== EstadoMaquina.VENDIDA && (
               <div className="rounded-lg border border-dashed border-gray-300 p-3 space-y-2">
@@ -644,226 +585,39 @@ export default function MaquinaDetailPage() {
             )}
 
             {estado === EstadoMaquina.EN_DIAGNOSTICO && (
-              <form onSubmit={handleCompletarDiagnostico} className="space-y-4 border-t pt-4">
-                <p className="text-sm text-[#6c757d]">
-                  Diagnóstico por área — asigna un responsable por cada observación registrada.
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(
-                    [
-                      ['Mecánica', diagMecanica, setDiagMecanica, diagMecanicaResp, setDiagMecanicaResp],
-                      ['Eléctrica', diagElectrica, setDiagElectrica, diagElectricaResp, setDiagElectricaResp],
-                      ['Pintado', diagPintado, setDiagPintado, diagPintadoResp, setDiagPintadoResp],
-                      [
-                        'Mantenimiento general',
-                        diagMantenimiento,
-                        setDiagMantenimiento,
-                        diagMantenimientoResp,
-                        setDiagMantenimientoResp,
-                      ],
-                    ] as const
-                  ).map(([label, val, setVal, resp, setResp]) => (
-                    <div key={label} className="space-y-2">
-                      <label className="block text-sm font-medium">{label}</label>
-                      <textarea
-                        value={val}
-                        onChange={(e) => setVal(e.target.value)}
-                        rows={2}
-                        placeholder="Observaciones (opcional)"
-                        className="w-full rounded-lg border px-3 py-2 text-sm"
-                      />
-                      {val.trim() && (
-                        <select
-                          value={resp}
-                          onChange={(e) => setResp(e.target.value)}
-                          className="w-full rounded-lg border px-3 py-2 text-sm"
-                          required
-                        >
-                          <option value="">Responsable de esta observación *</option>
-                          {empleados.map((e) => (
-                            <option key={e.id} value={e.id}>
-                              {e.nombreCompleto} — {e.especialidad.replace(/_/g, ' ')}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={requiereMantenimiento}
-                    onChange={(e) => setRequiereMantenimiento(e.target.checked)}
-                  />
-                  Requiere mantenimiento antes de vender
-                </label>
-                {!requiereMantenimiento && (
-                  <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
-                    Diagnóstico preventivo: la máquina pasará directo a lista para venta sin mantenimiento.
-                  </p>
-                )}
-                <button
-                  type="submit"
-                  disabled={actionLoading || empleados.length === 0}
-                  className="rounded-lg bg-[#f5c842] px-4 py-2 font-semibold text-sm disabled:opacity-50"
-                >
-                  {actionLoading
-                    ? 'Guardando...'
-                    : requiereMantenimiento
-                      ? 'Completar → Mantenimiento'
-                      : 'Completar → Lista para venta'}
-                </button>
-              </form>
+              <DiagnosticoPanel
+                maquinaId={params.id}
+                empleados={empleados}
+                asignaciones={asignacionesDiagnostico}
+                onUpdated={load}
+                onListaParaVenta={notifyListaParaVenta}
+                maquinaNombre={maquina.nombre}
+              />
             )}
 
             {estado === EstadoMaquina.EN_MANTENIMIENTO && (
-              <div className="space-y-4 border-t pt-4">
-                <p className="text-sm text-[#6c757d]">
-                  Asigna el trabajo a un empleado. Él iniciará sesión, describirá qué hará y
-                  finalizará. Tú validas y apruebas antes de marcar la máquina lista.
-                </p>
-                <ImagePicker
-                  label="Fotos del trabajo"
-                  disabled={uploading}
-                  onUpload={(files) => uploadPhotos(EtapaImagen.OTRA, files)}
-                  uploading={uploading}
-                />
-                <form onSubmit={asignarTrabajo} className="rounded-lg bg-gray-50 border p-4 space-y-3">
-                  <p className="text-sm font-medium">Asignar nuevo trabajo</p>
-                  <select
-                    value={areaAsignar}
-                    onChange={(e) => setAreaAsignar(e.target.value as AreaIntervencion)}
-                    className="w-full rounded-lg border px-3 py-2"
-                  >
-                    {Object.entries(AREA_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={empleadoAsignarId}
-                    onChange={(e) => setEmpleadoAsignarId(e.target.value)}
-                    className="w-full rounded-lg border px-3 py-2"
-                    required
-                  >
-                    <option value="">Seleccionar empleado</option>
-                    {empleados.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.nombreCompleto} — {e.especialidad.replace(/_/g, ' ')}
-                      </option>
-                    ))}
-                  </select>
-                  <textarea
-                    value={descAsignar}
-                    onChange={(e) => setDescAsignar(e.target.value)}
-                    placeholder="Qué debe hacer el trabajador..."
-                    rows={2}
-                    className="w-full rounded-lg border px-3 py-2"
-                    required
-                  />
-                  <button
-                    type="submit"
-                    disabled={empleados.length === 0}
-                    className="rounded-lg bg-[#1a1a1a] text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                  >
-                    Asignar trabajo
-                  </button>
-                </form>
-
-                {intervencionesMantenimiento.length > 0 && (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium">Trabajos asignados</p>
-                    {intervencionesMantenimiento.map((i) => (
-                      <div key={i.id} className="rounded-lg border p-3 text-sm">
-                        <p className="font-medium">
-                          {i.responsableNombre ?? i.responsable?.nombreCompleto} —{' '}
-                          {AREA_LABELS[i.area]}
-                        </p>
-                        <p className="text-[#6c757d] mt-1">{i.descripcion}</p>
-                        {i.detalleTrabajo && (
-                          <p className="mt-1 bg-gray-50 p-2 rounded">Realizado: {i.detalleTrabajo}</p>
-                        )}
-                        <div className="text-xs text-[#6c757d] mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
-                          <p>Estado: {(i.estadoIntervencion ?? 'ASIGNADO').replace(/_/g, ' ')}</p>
-                          <p>Asignado: {formatDateTime(i.fechaAsignacion ?? i.createdAt)}</p>
-                          {i.fechaInicio && <p>Inicio: {formatDateTime(i.fechaInicio)}</p>}
-                          {i.fechaFinalizacion && (
-                            <p>Finalizado: {formatDateTime(i.fechaFinalizacion)}</p>
-                          )}
-                          {i.fechaAprobacion && (
-                            <p>Aprobado: {formatDateTime(i.fechaAprobacion)}</p>
-                          )}
-                        </div>
-                        {i.estadoIntervencion === EstadoIntervencion.FINALIZADO && (
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              type="button"
-                              onClick={() => aprobarIntervencion(i.id)}
-                              className="text-xs bg-green-700 text-white px-3 py-1 rounded-lg"
-                            >
-                              Validar trabajo
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => rechazarIntervencion(i.id)}
-                              className="text-xs bg-red-600 text-white px-3 py-1 rounded-lg"
-                            >
-                              Rechazar
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {hayTrabajoAprobado && !hayPendientesAprobacion && (
-                  <button
-                    type="button"
-                    disabled={actionLoading}
-                    onClick={() => cambiarEstado(EstadoMaquina.LISTA_PARA_VENTA, 'Trabajo validado')}
-                    className="rounded-lg bg-green-700 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                  >
-                    Trabajo terminado → Lista para venta
-                  </button>
-                )}
-              </div>
+              <MantenimientoPanel
+                maquinaId={params.id}
+                trabajos={intervencionesMantenimiento}
+                uploading={uploading}
+                onUpload={async (files) => uploadPhotos(EtapaImagen.OTRA, files)}
+                onUpdated={load}
+                onListaParaVenta={pasarListaParaVenta}
+                actionLoading={actionLoading}
+                hayPendientesAprobacion={hayPendientesAprobacion}
+                hayTrabajoAprobado={hayTrabajoAprobado}
+                onAprobar={aprobarIntervencion}
+                onRechazar={rechazarIntervencion}
+              />
             )}
 
-            {(estado === EstadoMaquina.LISTA_PARA_VENTA ||
-              estado === EstadoMaquina.RESERVADA ||
-              estado === EstadoMaquina.VENDIDA) && (
-              <form onSubmit={savePrecio} className="border-t pt-4 space-y-3">
-                <p className="text-sm font-medium">Precios (USD)</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-[#6c757d] mb-1">Precio de compra USD</label>
-                    <input
-                      value={precioCompraUsd}
-                      onChange={(e) => setPrecioCompraUsd(e.target.value)}
-                      placeholder="Ej. 5000"
-                      className="w-full rounded-lg border px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-[#6c757d] mb-1">Precio de venta USD</label>
-                    <input
-                      value={precioVentaUsd}
-                      onChange={(e) => setPrecioVentaUsd(e.target.value)}
-                      placeholder="Ej. 7500"
-                      className="w-full rounded-lg border px-3 py-2"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  className="rounded-lg bg-[#f5c842] px-4 py-2 font-semibold text-sm"
-                >
-                  Guardar precio
-                </button>
-              </form>
+            {estado === EstadoMaquina.LISTA_PARA_VENTA && (
+              <PreciosListaVentaPanel
+                precioCompraUsd={maquina.precioCompraUsd}
+                precioVentaUsd={maquina.precioVentaUsd}
+                maquinaNombre={maquina.nombre}
+                onSave={savePrecio}
+              />
             )}
           </div>
 

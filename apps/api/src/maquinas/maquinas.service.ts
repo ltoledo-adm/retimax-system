@@ -13,12 +13,13 @@ import {
   TipoIntervencion,
   Usuario,
 } from '@prisma/client';
-import { buildMaquinaNombre } from '../common/empleado-utils';
 import { toIntervencionDto, toMaquinaDto } from '../common/mappers';
 import { PrismaService } from '../prisma/prisma.service';
 import { STORAGE_SERVICE, StorageService } from '../storage/storage.interface';
 import {
-  CompletarDiagnosticoDto,
+  AsignacionDiagnosticoDto,
+  FinalizarDiagnosticoDto,
+  UpdateAsignacionDiagnosticoDto,
   CreateIntervencionDto,
   CreateMaquinaDto,
   RegistrarRecepcionDto,
@@ -55,6 +56,11 @@ export class MaquinasService {
       historialEstados: {
         orderBy: { createdAt: 'desc' as const },
         include: { creadoPor: true },
+      },
+      pedidos: {
+        take: 1,
+        orderBy: { createdAt: 'desc' as const },
+        include: { cliente: true },
       },
     };
   }
@@ -107,11 +113,10 @@ export class MaquinasService {
     if (!proveedor) throw new BadRequestException('Proveedor no encontrado');
 
     const maquina = await this.prisma.$transaction(async (tx) => {
-      const nombre = buildMaquinaNombre(dto.tipo, dto.marca, dto.modelo);
       const created = await tx.maquina.create({
         data: {
-          nombre,
-          tipo: dto.tipo,
+          nombre: dto.nombre.trim(),
+          tipo: dto.tipo?.trim() || '',
           marca: dto.marca,
           modelo: dto.modelo,
           anio: dto.anio,
@@ -157,10 +162,7 @@ export class MaquinasService {
     const updated = await this.prisma.maquina.update({
       where: { id },
       data: {
-        nombre:
-          dto.tipo && dto.marca && dto.modelo
-            ? buildMaquinaNombre(dto.tipo, dto.marca, dto.modelo)
-            : dto.nombre,
+        nombre: dto.nombre?.trim(),
         tipo: dto.tipo,
         marca: dto.marca,
         modelo: dto.modelo,
@@ -181,8 +183,11 @@ export class MaquinasService {
   async registrarTransito(id: string, dto: RegistrarTransitoDto, user: Usuario) {
     const maquina = await this.prisma.maquina.findUnique({ where: { id } });
     if (!maquina) throw new NotFoundException('Máquina no encontrada');
-    if (maquina.estado !== EstadoMaquina.COMPRADA_ITALIA) {
-      throw new BadRequestException('Solo se puede despachar desde Comprada en Italia');
+    if (
+      maquina.estado !== EstadoMaquina.COMPRADA_ITALIA &&
+      maquina.estado !== EstadoMaquina.RESERVADA
+    ) {
+      throw new BadRequestException('Solo se puede despachar desde Comprada o Reservada');
     }
 
     const updated = await this.changeEstado(
@@ -274,83 +279,206 @@ export class MaquinasService {
     return toMaquinaDto(updated);
   }
 
-  async completarDiagnostico(id: string, dto: CompletarDiagnosticoDto, user: Usuario) {
+  async agregarAsignacionDiagnostico(id: string, dto: AsignacionDiagnosticoDto, user: Usuario) {
     const maquina = await this.prisma.maquina.findUnique({ where: { id } });
     if (!maquina) throw new NotFoundException('Máquina no encontrada');
     if (maquina.estado !== EstadoMaquina.EN_DIAGNOSTICO) {
-      throw new BadRequestException('Solo se puede completar diagnóstico en ese estado');
+      throw new BadRequestException('Solo se pueden asignar observaciones en diagnóstico');
     }
 
-    const areas: {
-      area: AreaIntervencion;
-      texto?: string;
-      responsableId?: string;
-    }[] = [
-      { area: AreaIntervencion.MECANICA, texto: dto.mecanica?.trim(), responsableId: dto.mecanicaResponsableId },
-      { area: AreaIntervencion.ELECTRICA, texto: dto.electrica?.trim(), responsableId: dto.electricaResponsableId },
-      { area: AreaIntervencion.PINTADO, texto: dto.pintado?.trim(), responsableId: dto.pintadoResponsableId },
-      {
-        area: AreaIntervencion.MANTENIMIENTO_GENERAL,
-        texto: dto.mantenimiento?.trim(),
-        responsableId: dto.mantenimientoResponsableId,
+    const existente = await this.prisma.intervencion.findFirst({
+      where: {
+        maquinaId: id,
+        tipo: TipoIntervencion.DIAGNOSTICO_INICIAL,
+        area: dto.area,
+        estadoIntervencion: { not: EstadoIntervencion.CANCELADO },
       },
-    ];
-
-    const conTexto = areas.filter((a) => a.texto);
-    if (conTexto.some((a) => !a.responsableId)) {
-      throw new BadRequestException('Cada área con observación debe tener un responsable asignado');
+    });
+    if (existente) {
+      throw new BadRequestException('Ya hay una asignación activa en esta área. Edítala o elimínala primero.');
     }
 
-    const skipMantenimiento = dto.requiereMantenimiento === false;
+    const emp = await this.prisma.empleado.findUnique({ where: { id: dto.responsableId } });
+    if (!emp?.activo) throw new BadRequestException('Empleado responsable no válido');
 
-    for (const a of conTexto) {
-      const emp = await this.prisma.empleado.findUnique({ where: { id: a.responsableId! } });
+    const intervencion = await this.prisma.intervencion.create({
+      data: {
+        maquinaId: id,
+        tipo: TipoIntervencion.DIAGNOSTICO_INICIAL,
+        area: dto.area,
+        descripcion: dto.descripcion.trim(),
+        responsableId: dto.responsableId,
+        responsableNombre: `${emp.nombre} ${emp.apellido}`,
+        fechaAsignacion: new Date(),
+        estadoIntervencion: EstadoIntervencion.ASIGNADO,
+        registradoPorId: user.id,
+      },
+      include: {
+        registradoPor: true,
+        responsable: true,
+      },
+    });
+
+    return toIntervencionDto(intervencion);
+  }
+
+  async actualizarAsignacionDiagnostico(
+    maquinaId: string,
+    intervencionId: string,
+    dto: UpdateAsignacionDiagnosticoDto,
+    user: Usuario,
+  ) {
+    const intervencion = await this.getAsignacionDiagnosticoEditable(maquinaId, intervencionId);
+
+    let responsableNombre = intervencion.responsableNombre;
+    if (dto.responsableId && dto.responsableId !== intervencion.responsableId) {
+      const emp = await this.prisma.empleado.findUnique({ where: { id: dto.responsableId } });
       if (!emp?.activo) throw new BadRequestException('Empleado responsable no válido');
+      responsableNombre = `${emp.nombre} ${emp.apellido}`;
+    }
 
-      await this.prisma.intervencion.create({
-        data: {
-          maquinaId: id,
-          tipo: TipoIntervencion.DIAGNOSTICO_INICIAL,
-          area: a.area,
-          descripcion: a.texto!,
-          responsableId: a.responsableId,
-          responsableNombre: `${emp.nombre} ${emp.apellido}`,
-          fechaAsignacion: new Date(),
-          estadoIntervencion: EstadoIntervencion.ASIGNADO,
-          registradoPorId: user.id,
-        },
-      });
+    const updated = await this.prisma.intervencion.update({
+      where: { id: intervencionId },
+      data: {
+        descripcion: dto.descripcion?.trim(),
+        responsableId: dto.responsableId,
+        responsableNombre,
+        registradoPorId: user.id,
+      },
+      include: {
+        registradoPor: true,
+        responsable: true,
+      },
+    });
 
-      if (!skipMantenimiento) {
+    return toIntervencionDto(updated);
+  }
+
+  async eliminarAsignacionDiagnostico(maquinaId: string, intervencionId: string) {
+    await this.getAsignacionDiagnosticoEditable(maquinaId, intervencionId);
+    await this.prisma.intervencion.update({
+      where: { id: intervencionId },
+      data: { estadoIntervencion: EstadoIntervencion.CANCELADO },
+    });
+    return { ok: true };
+  }
+
+  async finalizarDiagnostico(id: string, dto: FinalizarDiagnosticoDto, user: Usuario) {
+    const maquina = await this.prisma.maquina.findUnique({ where: { id } });
+    if (!maquina) throw new NotFoundException('Máquina no encontrada');
+    if (maquina.estado !== EstadoMaquina.EN_DIAGNOSTICO) {
+      throw new BadRequestException('Solo se puede finalizar diagnóstico en ese estado');
+    }
+
+    const asignaciones = await this.prisma.intervencion.findMany({
+      where: {
+        maquinaId: id,
+        tipo: TipoIntervencion.DIAGNOSTICO_INICIAL,
+        estadoIntervencion: { not: EstadoIntervencion.CANCELADO },
+      },
+    });
+
+    if (asignaciones.length > 0) {
+      for (const a of asignaciones) {
         await this.prisma.intervencion.create({
           data: {
             maquinaId: id,
             tipo: TipoIntervencion.TRABAJO_REALIZADO,
             area: a.area,
-            descripcion: `Mantenimiento según diagnóstico (${a.area}): ${a.texto}`,
+            descripcion: `Mantenimiento según diagnóstico (${a.area}): ${a.descripcion}`,
             responsableId: a.responsableId,
+            responsableNombre: a.responsableNombre,
             fechaAsignacion: new Date(),
             estadoIntervencion: EstadoIntervencion.ASIGNADO,
             registradoPorId: user.id,
           },
         });
       }
+
+      const updated = await this.changeEstado(
+        maquina,
+        EstadoMaquina.EN_MANTENIMIENTO,
+        user.id,
+        'Diagnóstico completado — requiere mantenimiento',
+      );
+      return toMaquinaDto(updated);
     }
 
-    const nuevoEstado = skipMantenimiento
-      ? EstadoMaquina.LISTA_PARA_VENTA
-      : conTexto.length > 0
-        ? EstadoMaquina.EN_MANTENIMIENTO
-        : EstadoMaquina.LISTA_PARA_VENTA;
+    const skipMantenimiento = dto.requiereMantenimiento === false;
+    if (!skipMantenimiento) {
+      throw new BadRequestException(
+        'Sin observaciones registradas: marque "No requiere mantenimiento" e indique el motivo',
+      );
+    }
+    if (!dto.motivoSinMantenimiento?.trim()) {
+      throw new BadRequestException('Indique por qué no requiere mantenimiento');
+    }
 
-    const motivo = skipMantenimiento
-      ? 'Diagnóstico preventivo — no requiere mantenimiento'
-      : conTexto.length > 0
-        ? 'Diagnóstico: requiere mantenimiento'
-        : 'Diagnóstico: lista para venta';
-
-    const updated = await this.changeEstado(maquina, nuevoEstado, user.id, motivo);
+    const updated = await this.changeEstado(
+      maquina,
+      EstadoMaquina.LISTA_PARA_VENTA,
+      user.id,
+      `Diagnóstico preventivo: ${dto.motivoSinMantenimiento.trim()}`,
+    );
     return toMaquinaDto(updated);
+  }
+
+  async completarDiagnostico(id: string, dto: FinalizarDiagnosticoDto, user: Usuario) {
+    return this.finalizarDiagnostico(id, dto, user);
+  }
+
+  private async getAsignacionDiagnosticoEditable(maquinaId: string, intervencionId: string) {
+    const maquina = await this.prisma.maquina.findUnique({ where: { id: maquinaId } });
+    if (!maquina) throw new NotFoundException('Máquina no encontrada');
+    if (maquina.estado !== EstadoMaquina.EN_DIAGNOSTICO) {
+      throw new BadRequestException('Solo se editan asignaciones durante el diagnóstico');
+    }
+
+    const intervencion = await this.prisma.intervencion.findFirst({
+      where: {
+        id: intervencionId,
+        maquinaId,
+        tipo: TipoIntervencion.DIAGNOSTICO_INICIAL,
+        estadoIntervencion: EstadoIntervencion.ASIGNADO,
+      },
+    });
+    if (!intervencion) {
+      throw new NotFoundException('Asignación de diagnóstico no encontrada o no editable');
+    }
+    return intervencion;
+  }
+
+  async actualizarTrabajoMantenimiento(
+    maquinaId: string,
+    intervencionId: string,
+    descripcion: string,
+    user: Usuario,
+  ) {
+    const maquina = await this.prisma.maquina.findUnique({ where: { id: maquinaId } });
+    if (!maquina) throw new NotFoundException('Máquina no encontrada');
+    if (maquina.estado !== EstadoMaquina.EN_MANTENIMIENTO) {
+      throw new BadRequestException('Solo se editan trabajos en mantenimiento');
+    }
+
+    const intervencion = await this.prisma.intervencion.findFirst({
+      where: {
+        id: intervencionId,
+        maquinaId,
+        tipo: TipoIntervencion.TRABAJO_REALIZADO,
+        estadoIntervencion: {
+          in: [EstadoIntervencion.ASIGNADO, EstadoIntervencion.EN_PROCESO, EstadoIntervencion.RECHAZADO],
+        },
+      },
+      include: { registradoPor: true, responsable: true },
+    });
+    if (!intervencion) throw new NotFoundException('Trabajo no editable');
+
+    const updated = await this.prisma.intervencion.update({
+      where: { id: intervencionId },
+      data: { descripcion: descripcion.trim(), registradoPorId: user.id },
+      include: { registradoPor: true, responsable: true },
+    });
+    return toIntervencionDto(updated);
   }
 
   async uploadNotaAudio(id: string, file: Express.Multer.File) {
@@ -426,7 +554,15 @@ export class MaquinasService {
   }
 
   async createIntervencion(id: string, dto: CreateIntervencionDto, user: Usuario) {
-    await this.ensureExists(id);
+    const maquina = await this.ensureExists(id);
+    if (
+      maquina.estado === EstadoMaquina.EN_MANTENIMIENTO &&
+      dto.tipo === TipoIntervencion.TRABAJO_REALIZADO
+    ) {
+      throw new BadRequestException(
+        'Los trabajos de mantenimiento se asignan en diagnóstico. Edite los existentes si necesita cambios.',
+      );
+    }
 
     const empleado = await this.prisma.empleado.findUnique({ where: { id: dto.responsableId } });
     if (!empleado || !empleado.activo) {

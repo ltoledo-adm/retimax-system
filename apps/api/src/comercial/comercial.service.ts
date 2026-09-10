@@ -34,9 +34,13 @@ export class ComercialService {
     return pedidos.map((p) => this.toPedidoDto(p));
   }
 
-  async createPedido(dto: CreatePedidoDto) {
+  async createPedido(dto: CreatePedidoDto, userId?: string) {
     const cliente = await this.prisma.cliente.findUnique({ where: { id: dto.clienteId } });
     if (!cliente) throw new BadRequestException('Cliente no encontrado');
+
+    if (dto.maquinaId && dto.nuevaMaquina) {
+      throw new BadRequestException('Indique una máquina existente o registre una nueva, no ambas');
+    }
 
     if (dto.maquinaId) {
       const maquina = await this.prisma.maquina.findUnique({ where: { id: dto.maquinaId } });
@@ -44,10 +48,47 @@ export class ComercialService {
     }
 
     const pedido = await this.prisma.$transaction(async (tx) => {
+      let maquinaId = dto.maquinaId;
+
+      if (dto.nuevaMaquina) {
+        if (!userId) throw new BadRequestException('Usuario requerido para registrar máquina');
+        let proveedorId = dto.nuevaMaquina.proveedorId;
+        if (!proveedorId) {
+          const prov = await tx.proveedor.findFirst({ where: { nombre: 'Encargo / Reserva' } });
+          if (!prov) throw new BadRequestException('Configure el proveedor "Encargo / Reserva"');
+          proveedorId = prov.id;
+        }
+
+        const nm = dto.nuevaMaquina;
+        const maquina = await tx.maquina.create({
+          data: {
+            nombre: nm.nombre.trim(),
+            tipo: nm.tipo?.trim() || '',
+            marca: nm.marca.trim(),
+            modelo: nm.modelo.trim(),
+            anio: nm.anio,
+            proveedorId,
+            estado: EstadoMaquina.RESERVADA,
+            descripcionAcordada: `Reserva para ${cliente.nombre}`,
+            creadoPorId: userId,
+          },
+        });
+        await tx.historialEstado.create({
+          data: {
+            maquinaId: maquina.id,
+            estado: EstadoMaquina.RESERVADA,
+            anterior: null,
+            motivo: `Reserva — cliente ${cliente.nombre}`,
+            creadoPorId: userId,
+          },
+        });
+        maquinaId = maquina.id;
+      }
+
       const created = await tx.pedido.create({
         data: {
           clienteId: dto.clienteId,
-          maquinaId: dto.maquinaId,
+          maquinaId,
           descripcionReferencia: dto.descripcionReferencia,
           anticipoUsd: new Prisma.Decimal(dto.anticipoUsd),
           saldoUsd: new Prisma.Decimal(dto.saldoUsd),
@@ -64,7 +105,7 @@ export class ComercialService {
         data: { numero, pedidoId: created.id },
       });
 
-      if (created.maquinaId) {
+      if (created.maquinaId && !dto.nuevaMaquina) {
         await tx.maquina.update({
           where: { id: created.maquinaId },
           data: { estado: EstadoMaquina.RESERVADA },

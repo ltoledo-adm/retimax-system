@@ -18,6 +18,12 @@ export default function PedidosPage() {
   const [editPedidoId, setEditPedidoId] = useState<string | null>(null);
   const [clienteId, setClienteId] = useState('');
   const [maquinaId, setMaquinaId] = useState('');
+  const [crearMaquina, setCrearMaquina] = useState(false);
+  const [mqNombre, setMqNombre] = useState('');
+  const [mqTipo, setMqTipo] = useState('');
+  const [mqMarca, setMqMarca] = useState('');
+  const [mqModelo, setMqModelo] = useState('');
+  const [mqAnio, setMqAnio] = useState(String(new Date().getFullYear()));
   const [descripcion, setDescripcion] = useState('');
   const [anticipo, setAnticipo] = useState('');
   const [total, setTotal] = useState('');
@@ -56,6 +62,12 @@ export default function PedidosPage() {
   function resetForm() {
     setClienteId('');
     setMaquinaId('');
+    setCrearMaquina(false);
+    setMqNombre('');
+    setMqTipo('');
+    setMqMarca('');
+    setMqModelo('');
+    setMqAnio(String(new Date().getFullYear()));
     setDescripcion('');
     setAnticipo('');
     setTotal('');
@@ -106,7 +118,16 @@ export default function PedidosPage() {
         method: 'POST',
         body: JSON.stringify({
           clienteId,
-          maquinaId: maquinaId || undefined,
+          maquinaId: crearMaquina ? undefined : maquinaId || undefined,
+          nuevaMaquina: crearMaquina
+            ? {
+                nombre: mqNombre.trim(),
+                tipo: mqTipo.trim() || undefined,
+                marca: mqMarca.trim(),
+                modelo: mqModelo.trim(),
+                anio: Number(mqAnio),
+              }
+            : undefined,
           descripcionReferencia: descripcion || undefined,
           anticipoUsd,
           saldoUsd,
@@ -169,19 +190,70 @@ export default function PedidosPage() {
                   + Cliente
                 </button>
               </div>
-              <select
-                value={maquinaId}
-                onChange={(e) => onMaquinaChange(e.target.value)}
-                className="w-full rounded-lg border px-3 py-2"
-              >
-                <option value="">Máquina (solo lista para venta)</option>
-                {maquinas.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.nombre}
-                    {m.precioVentaUsd ? ` — $${m.precioVentaUsd}` : ''}
-                  </option>
-                ))}
-              </select>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={crearMaquina}
+                  onChange={(e) => {
+                    setCrearMaquina(e.target.checked);
+                    if (e.target.checked) setMaquinaId('');
+                  }}
+                />
+                Registrar nueva máquina (quedará en estado Reservada)
+              </label>
+              {crearMaquina ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border p-3 bg-gray-50">
+                  <input
+                    value={mqNombre}
+                    onChange={(e) => setMqNombre(e.target.value)}
+                    placeholder="Nombre *"
+                    className="rounded-lg border px-3 py-2 sm:col-span-2"
+                    required
+                  />
+                  <input
+                    value={mqTipo}
+                    onChange={(e) => setMqTipo(e.target.value)}
+                    placeholder="Tipo"
+                    className="rounded-lg border px-3 py-2"
+                  />
+                  <input
+                    value={mqMarca}
+                    onChange={(e) => setMqMarca(e.target.value)}
+                    placeholder="Marca *"
+                    className="rounded-lg border px-3 py-2"
+                    required
+                  />
+                  <input
+                    value={mqModelo}
+                    onChange={(e) => setMqModelo(e.target.value)}
+                    placeholder="Modelo *"
+                    className="rounded-lg border px-3 py-2"
+                    required
+                  />
+                  <input
+                    type="number"
+                    value={mqAnio}
+                    onChange={(e) => setMqAnio(e.target.value)}
+                    placeholder="Año *"
+                    className="rounded-lg border px-3 py-2"
+                    required
+                  />
+                </div>
+              ) : (
+                <select
+                  value={maquinaId}
+                  onChange={(e) => onMaquinaChange(e.target.value)}
+                  className="w-full rounded-lg border px-3 py-2"
+                >
+                  <option value="">Máquina existente (lista para venta)</option>
+                  {maquinas.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nombre}
+                      {m.precioVentaUsd ? ` — $${m.precioVentaUsd}` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
               <textarea
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}

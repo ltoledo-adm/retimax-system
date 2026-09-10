@@ -8,7 +8,7 @@ import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
 import { apiFetch, imageUrl } from '@/lib/api';
 import { ESTADO_COLORS, ESTADO_LABELS } from '@/lib/labels';
-import { maquinaSubtitulo, maquinaTitulo } from '@/lib/maquina-display';
+import { maquinaDetalleLinea, maquinaNombrePrincipal } from '@/lib/maquina-display';
 
 type ViewMode = 'grid' | 'list';
 
@@ -117,8 +117,8 @@ export default function MaquinasList() {
                     <div className="p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <h3 className="font-semibold">{maquinaTitulo(m)}</h3>
-                          <p className="text-sm text-[#6c757d] mt-0.5">{maquinaSubtitulo(m)}</p>
+                          <h3 className="font-semibold">{maquinaNombrePrincipal(m)}</h3>
+                          <p className="text-sm text-[#6c757d] mt-0.5">{maquinaDetalleLinea(m)}</p>
                         </div>
                         <span
                           className={`shrink-0 text-xs text-white px-2 py-1 rounded-full ${ESTADO_COLORS[m.estado]}`}
@@ -138,8 +138,8 @@ export default function MaquinasList() {
                 <thead className="bg-gray-50 border-b text-left">
                   <tr>
                     <th className="p-3 w-16" />
-                    <th className="p-3">Máquina</th>
-                    <th className="p-3">Modelo</th>
+                    <th className="p-3">Nombre</th>
+                    <th className="p-3">Detalle</th>
                     <th className="p-3">Proveedor</th>
                     <th className="p-3">Estado</th>
                     <th className="p-3">Precio USD</th>
@@ -164,10 +164,10 @@ export default function MaquinasList() {
                         </td>
                         <td className="p-3">
                           <Link href={`/maquinas/${m.id}`} className="font-medium hover:text-[#f5c842]">
-                            {maquinaTitulo(m)}
+                            {maquinaNombrePrincipal(m)}
                           </Link>
                         </td>
-                        <td className="p-3 text-[#6c757d]">{maquinaSubtitulo(m)}</td>
+                        <td className="p-3 text-[#6c757d]">{maquinaDetalleLinea(m)}</td>
                         <td className="p-3 text-[#6c757d]">{m.proveedor?.nombre ?? '—'}</td>
                         <td className="p-3">
                           <span

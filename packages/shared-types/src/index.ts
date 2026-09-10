@@ -170,6 +170,14 @@ export interface HistorialEstadoDto {
   createdAt: string;
 }
 
+export interface PedidoReservaResumenMaquinaDto {
+  id: string;
+  clienteNombre: string;
+  anticipoUsd: string;
+  saldoUsd: string;
+  totalUsd: string;
+}
+
 export interface MaquinaDto {
   id: string;
   nombre: string;
@@ -177,6 +185,8 @@ export interface MaquinaDto {
   marca: string;
   modelo: string;
   anio?: number | null;
+  esReserva?: boolean;
+  pedidoReserva?: PedidoReservaResumenMaquinaDto | null;
   proveedorId: string;
   proveedor?: ProveedorDto;
   estado: EstadoMaquina;
@@ -415,9 +425,19 @@ export interface CreateClienteRequest {
   notas?: string;
 }
 
+export interface NuevaMaquinaReservaRequest {
+  nombre: string;
+  tipo?: string;
+  marca: string;
+  modelo: string;
+  anio: number;
+  proveedorId?: string;
+}
+
 export interface CreatePedidoRequest {
   clienteId: string;
   maquinaId?: string;
+  nuevaMaquina?: NuevaMaquinaReservaRequest;
   descripcionReferencia?: string;
   anticipoUsd: string;
   saldoUsd: string;

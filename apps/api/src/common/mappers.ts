@@ -248,9 +248,17 @@ export function toMaquinaDto(
     createdAt: Date;
     creadoPor: { id: string; nombre: string; username?: string; email: string; rol: string; activo: boolean; createdAt: Date };
   }>;
+  pedidos?: Array<{
+    id: string;
+    anticipoUsd: Decimal;
+    saldoUsd: Decimal;
+    totalUsd: Decimal;
+    cliente: { id: string; nombre: string };
+  }>;
 },
   options?: { employeeView?: boolean },
 ) {
+  const pedidoReserva = maquina.pedidos?.[0];
   return {
     id: maquina.id,
     nombre: maquina.nombre,
@@ -300,6 +308,16 @@ export function toMaquinaDto(
     historialEstados: options?.employeeView
       ? undefined
       : maquina.historialEstados?.map((h) => toHistorialEstadoDto(h)),
+    pedidoReserva: pedidoReserva
+      ? {
+          id: pedidoReserva.id,
+          clienteNombre: pedidoReserva.cliente.nombre,
+          anticipoUsd: decimalToString(pedidoReserva.anticipoUsd)!,
+          saldoUsd: decimalToString(pedidoReserva.saldoUsd)!,
+          totalUsd: decimalToString(pedidoReserva.totalUsd)!,
+        }
+      : null,
+    esReserva: maquina.estado === 'RESERVADA' || !!pedidoReserva,
     createdAt: maquina.createdAt.toISOString(),
     updatedAt: maquina.updatedAt.toISOString(),
   };

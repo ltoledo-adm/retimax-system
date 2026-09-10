@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
-import { Rol } from '@prisma/client';
+import { Rol, Usuario } from '@prisma/client';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ComercialService } from './comercial.service';
 import { CreatePedidoDto, CreateVentaDto, UpdatePedidoDto, UpdatePedidoEstadoDto, UpdateVentaDto } from './dto/comercial.dto';
@@ -15,8 +16,8 @@ export class ComercialController {
   }
 
   @Post('pedidos')
-  createPedido(@Body() dto: CreatePedidoDto) {
-    return this.comercialService.createPedido(dto);
+  createPedido(@Body() dto: CreatePedidoDto, @CurrentUser() user: Usuario) {
+    return this.comercialService.createPedido(dto, user.id);
   }
 
   @Patch('pedidos/:id/estado')

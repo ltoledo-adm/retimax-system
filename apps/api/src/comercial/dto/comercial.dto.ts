@@ -1,12 +1,45 @@
+import { Type } from 'class-transformer';
 import {
   IsDateString,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
+  Max,
+  Min,
+  MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { EstadoPedido } from '@prisma/client';
+
+export class NuevaMaquinaReservaDto {
+  @IsString()
+  @MinLength(1)
+  nombre!: string;
+
+  @IsOptional()
+  @IsString()
+  tipo?: string;
+
+  @IsString()
+  @MinLength(1)
+  marca!: string;
+
+  @IsString()
+  @MinLength(1)
+  modelo!: string;
+
+  @IsInt()
+  @Min(1950)
+  @Max(2100)
+  anio!: number;
+
+  @IsOptional()
+  @IsUUID()
+  proveedorId?: string;
+}
 
 export class CreatePedidoDto {
   @IsUUID()
@@ -35,6 +68,11 @@ export class CreatePedidoDto {
   @IsOptional()
   @IsDateString()
   fechaEntregaEstimada?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => NuevaMaquinaReservaDto)
+  nuevaMaquina?: NuevaMaquinaReservaDto;
 }
 
 export class UpdatePedidoEstadoDto {

@@ -18,9 +18,9 @@ export class CreateMaquinaDto {
   @MinLength(1)
   nombre!: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  tipo!: string;
+  tipo?: string;
 
   @IsString()
   @MinLength(1)
@@ -148,43 +148,42 @@ export class RegistrarRecepcionDto {
   fechaLlegadaReal?: string;
 }
 
-export class CompletarDiagnosticoDto {
+export class AsignacionDiagnosticoDto {
+  @IsEnum(AreaIntervencion)
+  area!: AreaIntervencion;
+
+  @IsString()
+  @MinLength(1)
+  descripcion!: string;
+
+  @IsUUID()
+  responsableId!: string;
+}
+
+export class UpdateAsignacionDiagnosticoDto {
   @IsOptional()
   @IsString()
-  mecanica?: string;
+  @MinLength(1)
+  descripcion?: string;
 
   @IsOptional()
   @IsUUID()
-  mecanicaResponsableId?: string;
+  responsableId?: string;
+}
 
-  @IsOptional()
-  @IsString()
-  electrica?: string;
-
-  @IsOptional()
-  @IsUUID()
-  electricaResponsableId?: string;
-
-  @IsOptional()
-  @IsString()
-  pintado?: string;
-
-  @IsOptional()
-  @IsUUID()
-  pintadoResponsableId?: string;
-
-  @IsOptional()
-  @IsString()
-  mantenimiento?: string;
-
-  @IsOptional()
-  @IsUUID()
-  mantenimientoResponsableId?: string;
-
+export class FinalizarDiagnosticoDto {
   @IsOptional()
   @IsBoolean()
   requiereMantenimiento?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  motivoSinMantenimiento?: string;
 }
+
+/** @deprecated usar asignaciones incrementales + finalizar */
+export class CompletarDiagnosticoDto extends FinalizarDiagnosticoDto {}
 
 export class CreateIntervencionDto {
   @IsEnum(TipoIntervencion)

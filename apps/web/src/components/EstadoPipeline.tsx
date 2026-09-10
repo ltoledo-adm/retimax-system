@@ -3,52 +3,82 @@
 import { EstadoMaquina } from '@retimax/shared-types';
 import { ESTADO_COLORS, ESTADO_LABELS } from '@/lib/labels';
 
-const PIPELINE: EstadoMaquina[] = [
+const PIPELINE_COMPRA: EstadoMaquina[] = [
   EstadoMaquina.COMPRADA_ITALIA,
   EstadoMaquina.EN_TRANSITO,
   EstadoMaquina.RECIBIDA,
   EstadoMaquina.EN_DIAGNOSTICO,
   EstadoMaquina.EN_MANTENIMIENTO,
   EstadoMaquina.LISTA_PARA_VENTA,
+];
+
+const PIPELINE_RESERVA: EstadoMaquina[] = [
   EstadoMaquina.RESERVADA,
-  EstadoMaquina.VENDIDA,
+  EstadoMaquina.EN_TRANSITO,
+  EstadoMaquina.RECIBIDA,
+  EstadoMaquina.EN_DIAGNOSTICO,
+  EstadoMaquina.EN_MANTENIMIENTO,
+  EstadoMaquina.LISTA_PARA_VENTA,
 ];
 
 type Props = {
   estadoActual: EstadoMaquina;
+  esReserva?: boolean;
 };
 
-export function EstadoPipeline({ estadoActual }: Props) {
-  const currentIdx = PIPELINE.indexOf(estadoActual);
+export function getPipelineForMaquina(estadoActual: EstadoMaquina, esReserva?: boolean): EstadoMaquina[] {
+  if (esReserva || estadoActual === EstadoMaquina.RESERVADA) {
+    return PIPELINE_RESERVA;
+  }
+  return PIPELINE_COMPRA;
+}
 
-  const hint: Record<EstadoMaquina, string> = {
+export function EstadoPipeline({ estadoActual, esReserva }: Props) {
+  const pipeline = getPipelineForMaquina(estadoActual, esReserva);
+  const currentIdx = pipeline.indexOf(estadoActual);
+
+  const hint: Partial<Record<EstadoMaquina, string>> = {
     [EstadoMaquina.COMPRADA_ITALIA]:
-      'Máquina registrada en Italia. Álvaro debe confirmar el despacho con fecha de salida.',
+      'Máquina registrada. Confirma el despacho con fecha de salida.',
+    [EstadoMaquina.RESERVADA]:
+      'Máquina reservada para un cliente. Sigue el flujo cuando llegue al taller.',
     [EstadoMaquina.EN_TRANSITO]:
-      'En camino. Al llegar al taller, marca como recibida para que Cesia verifique.',
+      'En camino. Al llegar al taller, marca como recibida.',
     [EstadoMaquina.RECIBIDA]:
-      'Cesia verifica cómo llegó vs. lo acordado, sube fotos y asigna quién hará el diagnóstico.',
+      'Verifica cómo llegó vs. lo acordado y sube fotos de llegada.',
     [EstadoMaquina.EN_DIAGNOSTICO]:
-      'El trabajador asignado completa el diagnóstico por área. Si falta algo → mantenimiento; si no → lista para venta.',
+      'Registra observaciones por área y asigna responsables. Finaliza cuando esté completo.',
     [EstadoMaquina.EN_MANTENIMIENTO]:
-      'Asigna trabajos a empleados. Ellos registran y finalizan; tú validas y apruebas.',
-    [EstadoMaquina.LISTA_PARA_VENTA]: 'Define precio de venta cuando esté listo.',
-    [EstadoMaquina.RESERVADA]: 'Máquina reservada para un cliente.',
-    [EstadoMaquina.VENDIDA]: 'Venta completada.',
+      'Supervisa los trabajos asignados en diagnóstico. Aprueba cuando finalicen.',
+    [EstadoMaquina.LISTA_PARA_VENTA]:
+      'Define precios y pasa al módulo de ventas para concretar la operación.',
+    [EstadoMaquina.VENDIDA]: 'Venta registrada — consulta reportes.',
   };
+
+  if (estadoActual === EstadoMaquina.VENDIDA) {
+    return (
+      <div className="rounded-xl bg-white border p-5">
+        <h3 className="font-semibold mb-2">Estado de la máquina</h3>
+        <span className={`inline-block px-3 py-1 rounded-full text-white text-sm ${ESTADO_COLORS.VENDIDA}`}>
+          {ESTADO_LABELS.VENDIDA}
+        </span>
+        <p className="mt-3 text-sm text-[#6c757d]">{hint.VENDIDA}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl bg-white border p-5">
       <h3 className="font-semibold mb-1">Estado de la máquina</h3>
       <p className="text-sm text-[#6c757d] mb-4">
-        Flujo: compra Italia → tránsito → recepción → diagnóstico → mantenimiento → venta
+        Flujo: {esReserva ? 'reserva' : 'compra'} → tránsito → recepción → diagnóstico → mantenimiento → venta
       </p>
 
       <div className="flex flex-wrap gap-1 mb-4">
-        {PIPELINE.map((estado, idx) => {
-          const isPast = idx < currentIdx;
+        {pipeline.map((estado, idx) => {
+          const isPast = currentIdx >= 0 && idx < currentIdx;
           const isCurrent = estado === estadoActual;
-          const isFuture = idx > currentIdx;
+          const isFuture = currentIdx >= 0 && idx > currentIdx;
           return (
             <div key={estado} className="flex items-center gap-1">
               <div
@@ -65,7 +95,7 @@ export function EstadoPipeline({ estadoActual }: Props) {
                 <span className="hidden sm:inline">{ESTADO_LABELS[estado]}</span>
                 <span className="sm:hidden">{idx + 1}</span>
               </div>
-              {idx < PIPELINE.length - 1 && (
+              {idx < pipeline.length - 1 && (
                 <span className={`text-xs ${isPast ? 'text-green-500' : 'text-gray-300'}`}>→</span>
               )}
             </div>

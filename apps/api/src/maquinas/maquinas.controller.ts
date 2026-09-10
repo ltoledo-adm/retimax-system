@@ -12,7 +12,9 @@ import {
   UploadImagenDto,
   RegistrarTransitoDto,
   RegistrarRecepcionDto,
-  CompletarDiagnosticoDto,
+  AsignacionDiagnosticoDto,
+  FinalizarDiagnosticoDto,
+  UpdateAsignacionDiagnosticoDto,
 } from './dto/maquina.dto';
 import { MaquinasService } from './maquinas.service';
 
@@ -126,13 +128,55 @@ export class MaquinasController {
     return this.maquinasService.registrarRecepcion(id, dto, files ?? [], user);
   }
 
-  @Post(':id/diagnostico/completar')
-  completarDiagnostico(
+  @Post(':id/diagnostico/asignaciones')
+  agregarAsignacionDiagnostico(
     @Param('id') id: string,
-    @Body() dto: CompletarDiagnosticoDto,
+    @Body() dto: AsignacionDiagnosticoDto,
     @CurrentUser() user: Usuario,
   ) {
-    return this.maquinasService.completarDiagnostico(id, dto, user);
+    return this.maquinasService.agregarAsignacionDiagnostico(id, dto, user);
+  }
+
+  @Patch(':id/diagnostico/asignaciones/:intervencionId')
+  actualizarAsignacionDiagnostico(
+    @Param('id') id: string,
+    @Param('intervencionId') intervencionId: string,
+    @Body() dto: UpdateAsignacionDiagnosticoDto,
+    @CurrentUser() user: Usuario,
+  ) {
+    return this.maquinasService.actualizarAsignacionDiagnostico(id, intervencionId, dto, user);
+  }
+
+  @Post(':id/diagnostico/asignaciones/:intervencionId/eliminar')
+  eliminarAsignacionDiagnostico(
+    @Param('id') id: string,
+    @Param('intervencionId') intervencionId: string,
+  ) {
+    return this.maquinasService.eliminarAsignacionDiagnostico(id, intervencionId);
+  }
+
+  @Post(':id/diagnostico/finalizar')
+  finalizarDiagnostico(
+    @Param('id') id: string,
+    @Body() dto: FinalizarDiagnosticoDto,
+    @CurrentUser() user: Usuario,
+  ) {
+    return this.maquinasService.finalizarDiagnostico(id, dto, user);
+  }
+
+  @Patch(':id/mantenimiento/trabajos/:intervencionId')
+  actualizarTrabajoMantenimiento(
+    @Param('id') id: string,
+    @Param('intervencionId') intervencionId: string,
+    @Body() body: { descripcion: string },
+    @CurrentUser() user: Usuario,
+  ) {
+    return this.maquinasService.actualizarTrabajoMantenimiento(
+      id,
+      intervencionId,
+      body.descripcion,
+      user,
+    );
   }
 
   @Post(':id/nota-audio')

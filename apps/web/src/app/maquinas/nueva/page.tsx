@@ -7,7 +7,6 @@ import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
 import { ImagePicker } from '@/components/ImagePicker';
 import { apiFetch } from '@/lib/api';
-import { maquinaTitulo } from '@/lib/maquina-display';
 
 export default function NuevaMaquinaPage() {
   const router = useRouter();
@@ -47,8 +46,8 @@ export default function NuevaMaquinaPage() {
       const maquina = await apiFetch<{ id: string }>('/maquinas', {
         method: 'POST',
         body: JSON.stringify({
-          nombre: nombre.trim() || maquinaTitulo({ tipo, marca }),
-          tipo: tipo.trim(),
+          nombre: nombre.trim(),
+          tipo: tipo.trim() || undefined,
           marca: marca.trim(),
           modelo: modelo.trim(),
           anio: Number(anio),
@@ -77,29 +76,26 @@ export default function NuevaMaquinaPage() {
       <AppShell>
         <div className="max-w-2xl mx-auto">
           <h2 className="text-2xl font-bold mb-2">Compra de máquina</h2>
-          <p className="text-[#6c757d] text-sm mb-6">
-            Registra la compra: datos de la máquina, proveedor, descripción acordada y fotos de
-            embarque.
-          </p>
+          <p className="text-[#6c757d] text-sm mb-6">Registra la compra con los datos de la máquina.</p>
           <form onSubmit={handleSubmit} className="rounded-xl bg-white border p-6 space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">Nombre *</label>
               <input
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                placeholder="Opcional — se genera de tipo + marca + modelo"
+                placeholder="Escribe el nombre de la maquinaria"
                 className="w-full rounded-lg border px-4 py-2"
+                required
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Tipo *</label>
+                <label className="block text-sm font-medium mb-1">Tipo</label>
                 <input
                   value={tipo}
                   onChange={(e) => setTipo(e.target.value)}
-                  placeholder="Fresadora, Torno..."
+                  placeholder="Escribe el tipo de la maquinaria"
                   className="w-full rounded-lg border px-4 py-2"
-                  required
                 />
               </div>
               <div>
@@ -107,7 +103,7 @@ export default function NuevaMaquinaPage() {
                 <input
                   value={marca}
                   onChange={(e) => setMarca(e.target.value)}
-                  placeholder="Arno, Mazak..."
+                  placeholder="Escribe la marca"
                   className="w-full rounded-lg border px-4 py-2"
                   required
                 />
@@ -117,7 +113,7 @@ export default function NuevaMaquinaPage() {
                 <input
                   value={modelo}
                   onChange={(e) => setModelo(e.target.value)}
-                  placeholder="K32, SL-10..."
+                  placeholder="Escribe el modelo"
                   className="w-full rounded-lg border px-4 py-2"
                   required
                 />
@@ -130,6 +126,7 @@ export default function NuevaMaquinaPage() {
                   max={2100}
                   value={anio}
                   onChange={(e) => setAnio(e.target.value)}
+                  placeholder="Escribe el año"
                   className="w-full rounded-lg border px-4 py-2"
                   required
                 />
@@ -154,7 +151,7 @@ export default function NuevaMaquinaPage() {
                 <input
                   value={nuevoProveedor}
                   onChange={(e) => setNuevoProveedor(e.target.value)}
-                  placeholder="Agregar proveedor rápido"
+                  placeholder="Agregar proveedor"
                   className="flex-1 rounded-lg border px-3 py-2 text-sm"
                 />
                 <button type="button" onClick={addProveedor} className="rounded-lg border px-3 py-2 text-sm">
@@ -163,18 +160,18 @@ export default function NuevaMaquinaPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Qué debería traer (descripción acordada)</label>
+              <label className="block text-sm font-medium mb-1">Descripción acordada</label>
               <textarea
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
                 rows={4}
                 className="w-full rounded-lg border px-4 py-2"
-                placeholder="Accesorios, herramientas, plato, garras..."
+                placeholder="Qué debería traer la máquina"
               />
             </div>
             <div className="border-t pt-4">
               <ImagePicker
-                label="Fotos de embarque / referencia (máx. 10)"
+                label="Fotos de embarque (máx. 10)"
                 disabled={loading}
                 files={fotosEmbarque}
                 onChange={setFotosEmbarque}

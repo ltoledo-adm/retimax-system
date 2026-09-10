@@ -5,7 +5,7 @@ import {
 } from '@retimax/shared-types';
 
 export const ESTADO_LABELS: Record<EstadoMaquina, string> = {
-  COMPRADA_ITALIA: 'Comprada en Italia',
+  COMPRADA_ITALIA: 'Comprada',
   EN_TRANSITO: 'En tránsito',
   RECIBIDA: 'Recibida',
   EN_DIAGNOSTICO: 'En diagnóstico',
@@ -40,7 +40,7 @@ export const AREA_LABELS: Record<AreaIntervencion, string> = {
 };
 
 export const ETAPA_LABELS: Record<string, string> = {
-  EMBARQUE: 'Embarque (Italia)',
+  EMBARQUE: 'Embarque',
   LLEGADA: 'Llegada (contenedor)',
   OTRA: 'Otras',
 };
@@ -59,6 +59,6 @@ export const NEXT_ESTADOS: Partial<Record<EstadoMaquina, EstadoMaquina[]>> = {
   RECIBIDA: [EstadoMaquina.EN_DIAGNOSTICO],
   EN_DIAGNOSTICO: [EstadoMaquina.EN_MANTENIMIENTO],
   EN_MANTENIMIENTO: [EstadoMaquina.LISTA_PARA_VENTA],
-  LISTA_PARA_VENTA: [EstadoMaquina.RESERVADA, EstadoMaquina.VENDIDA],
-  RESERVADA: [EstadoMaquina.LISTA_PARA_VENTA, EstadoMaquina.VENDIDA],
+  LISTA_PARA_VENTA: [],
+  RESERVADA: [EstadoMaquina.EN_TRANSITO],
 };

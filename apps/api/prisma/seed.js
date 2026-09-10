@@ -61,6 +61,15 @@ async function main() {
     },
   });
 
+  await prisma.proveedor.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000003' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000003',
+      nombre: 'Encargo / Reserva',
+    },
+  });
+
   const cliente = await prisma.cliente.upsert({
     where: { id: '00000000-0000-0000-0000-000000000002' },
     update: {},
