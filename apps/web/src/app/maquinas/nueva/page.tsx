@@ -48,9 +48,9 @@ export default function NuevaMaquinaPage() {
         body: JSON.stringify({
           nombre: nombre.trim(),
           tipo: tipo.trim() || undefined,
-          marca: marca.trim(),
-          modelo: modelo.trim(),
-          anio: Number(anio),
+          marca: marca.trim() || undefined,
+          modelo: modelo.trim() || undefined,
+          anio: anio.trim() ? Number(anio) : undefined,
           proveedorId,
           descripcionAcordada: descripcion || undefined,
         }),
@@ -99,27 +99,25 @@ export default function NuevaMaquinaPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Marca *</label>
+                <label className="block text-sm font-medium mb-1">Marca</label>
                 <input
                   value={marca}
                   onChange={(e) => setMarca(e.target.value)}
                   placeholder="Escribe la marca"
                   className="w-full rounded-lg border px-4 py-2"
-                  required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Modelo *</label>
+                <label className="block text-sm font-medium mb-1">Modelo</label>
                 <input
                   value={modelo}
                   onChange={(e) => setModelo(e.target.value)}
                   placeholder="Escribe el modelo"
                   className="w-full rounded-lg border px-4 py-2"
-                  required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Año *</label>
+                <label className="block text-sm font-medium mb-1">Año</label>
                 <input
                   type="number"
                   min={1950}
@@ -128,7 +126,6 @@ export default function NuevaMaquinaPage() {
                   onChange={(e) => setAnio(e.target.value)}
                   placeholder="Escribe el año"
                   className="w-full rounded-lg border px-4 py-2"
-                  required
                 />
               </div>
             </div>

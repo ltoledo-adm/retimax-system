@@ -1,4 +1,17 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Rol, Usuario } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -30,6 +43,23 @@ export class IntervencionesController {
     @Body() body: { detalleTrabajo?: string },
   ) {
     return this.intervencionesService.iniciar(id, user, body.detalleTrabajo);
+  }
+
+  @Post('intervenciones/:id/imagenes/lote')
+  @Roles(Rol.EMPLEADO)
+  @UseInterceptors(
+    FilesInterceptor('files', 10, {
+      storage: memoryStorage(),
+      limits: { fileSize: 25 * 1024 * 1024 },
+    }),
+  )
+  uploadImagenesTrabajo(
+    @Param('id') id: string,
+    @CurrentUser() user: Usuario,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files?.length) throw new BadRequestException('Al menos una imagen es requerida');
+    return this.intervencionesService.uploadImagenesTrabajo(id, user, files);
   }
 
   @Patch('intervenciones/:id/finalizar')

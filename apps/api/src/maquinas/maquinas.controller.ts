@@ -14,6 +14,7 @@ import {
   RegistrarRecepcionDto,
   AsignacionDiagnosticoDto,
   FinalizarDiagnosticoDto,
+  NotaDiagnosticoDto,
   UpdateAsignacionDiagnosticoDto,
 } from './dto/maquina.dto';
 import { MaquinasService } from './maquinas.service';
@@ -162,6 +163,15 @@ export class MaquinasController {
     @CurrentUser() user: Usuario,
   ) {
     return this.maquinasService.finalizarDiagnostico(id, dto, user);
+  }
+
+  @Post(':id/diagnostico/nota')
+  guardarNotaDiagnostico(
+    @Param('id') id: string,
+    @Body() dto: NotaDiagnosticoDto,
+    @CurrentUser() user: Usuario,
+  ) {
+    return this.maquinasService.guardarNotaDiagnostico(id, dto.descripcion, user);
   }
 
   @Patch(':id/mantenimiento/trabajos/:intervencionId')

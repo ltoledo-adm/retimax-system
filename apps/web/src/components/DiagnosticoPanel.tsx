@@ -1,10 +1,9 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   AreaIntervencion,
   EmpleadoDto,
-  EstadoIntervencion,
   IntervencionDto,
 } from '@retimax/shared-types';
 import { apiFetch } from '@/lib/api';
@@ -21,6 +20,7 @@ type Props = {
   maquinaId: string;
   empleados: EmpleadoDto[];
   asignaciones: IntervencionDto[];
+  notaGeneral?: IntervencionDto | null;
   onUpdated: () => void;
   onListaParaVenta: (nombre: string) => void;
   maquinaNombre: string;
@@ -30,35 +30,60 @@ export function DiagnosticoPanel({
   maquinaId,
   empleados,
   asignaciones,
+  notaGeneral,
   onUpdated,
   onListaParaVenta,
   maquinaNombre,
 }: Props) {
-  const [area, setArea] = useState<AreaIntervencion>(AreaIntervencion.MECANICA);
-  const [descripcion, setDescripcion] = useState('');
-  const [responsableId, setResponsableId] = useState('');
+  const asignacionPorArea = useMemo(() => {
+    const map = new Map<AreaIntervencion, IntervencionDto>();
+    for (const a of asignaciones) map.set(a.area, a);
+    return map;
+  }, [asignaciones]);
+
+  const [activas, setActivas] = useState<Record<string, boolean>>({});
+  const [descArea, setDescArea] = useState<Record<string, string>>({});
+  const [respArea, setRespArea] = useState<Record<string, string>>({});
   const [editId, setEditId] = useState<string | null>(null);
   const [editDesc, setEditDesc] = useState('');
   const [editResp, setEditResp] = useState('');
+  const [nota, setNota] = useState(notaGeneral?.descripcion ?? '');
   const [noRequiere, setNoRequiere] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const areasOcupadas = new Set(asignaciones.map((a) => a.area));
+  useEffect(() => {
+    setNota(notaGeneral?.descripcion ?? '');
+  }, [notaGeneral?.descripcion]);
+
+  useEffect(() => {
+    const next: Record<string, boolean> = {};
+    for (const a of AREAS) {
+      if (asignacionPorArea.has(a)) next[a] = true;
+    }
+    setActivas((prev) => ({ ...next, ...prev }));
+  }, [asignacionPorArea]);
+
   const hayAsignaciones = asignaciones.length > 0;
 
-  async function agregar(e: FormEvent) {
+  async function guardarArea(e: FormEvent, area: AreaIntervencion) {
     e.preventDefault();
+    const descripcion = (descArea[area] ?? '').trim();
+    const responsableId = respArea[area] ?? '';
+    if (!descripcion || !responsableId) {
+      setError('Complete la observación y el responsable del área');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
       await apiFetch(`/maquinas/${maquinaId}/diagnostico/asignaciones`, {
         method: 'POST',
-        body: JSON.stringify({ area, descripcion: descripcion.trim(), responsableId }),
+        body: JSON.stringify({ area, descripcion, responsableId }),
       });
-      setDescripcion('');
-      setResponsableId('');
+      setDescArea((p) => ({ ...p, [area]: '' }));
+      setRespArea((p) => ({ ...p, [area]: '' }));
       onUpdated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al asignar');
@@ -102,22 +127,54 @@ export function DiagnosticoPanel({
     }
   }
 
-  async function finalizar() {
+  async function guardarNota() {
+    const texto = nota.trim();
+    if (!texto) return;
+    setLoading(true);
+    setError('');
+    try {
+      await apiFetch(`/maquinas/${maquinaId}/diagnostico/nota`, {
+        method: 'POST',
+        body: JSON.stringify({ descripcion: texto }),
+      });
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar nota');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function pasarAMantenimiento() {
     setLoading(true);
     setError('');
     try {
       await apiFetch(`/maquinas/${maquinaId}/diagnostico/finalizar`, {
         method: 'POST',
         body: JSON.stringify(
-          hayAsignaciones
-            ? {}
-            : {
-                requiereMantenimiento: false,
-                motivoSinMantenimiento: motivo.trim(),
-              },
+          hayAsignaciones ? {} : { pasarAMantenimiento: true },
         ),
       });
-      if (!hayAsignaciones) onListaParaVenta(maquinaNombre);
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al pasar a mantenimiento');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function finalizarListaVenta() {
+    setLoading(true);
+    setError('');
+    try {
+      await apiFetch(`/maquinas/${maquinaId}/diagnostico/finalizar`, {
+        method: 'POST',
+        body: JSON.stringify({
+          requiereMantenimiento: false,
+          motivoSinMantenimiento: motivo.trim(),
+        }),
+      });
+      onListaParaVenta(maquinaNombre);
       onUpdated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al finalizar');
@@ -129,26 +186,72 @@ export function DiagnosticoPanel({
   return (
     <div className="space-y-4 border-t pt-4">
       <p className="text-sm text-[#6c757d]">
-        Agrega observaciones por área y asigna un responsable. Cada área se registra una sola vez.
+        Marque las áreas que aplican (opcional). Al activar un área puede registrar la observación y
+        asignar responsable. También puede escribir notas generales.
       </p>
 
-      {asignaciones.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-sm font-medium">Asignaciones registradas</p>
-          {asignaciones.map((a) => (
-            <div key={a.id} className="rounded-lg border p-3 text-sm space-y-2">
-              {editId === a.id ? (
-                <>
+      <div className="space-y-3">
+        {AREAS.map((area) => {
+          const asignada = asignacionPorArea.get(area);
+          const checked = activas[area] ?? !!asignada;
+
+          return (
+            <div key={area} className="rounded-lg border p-3 space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={!!asignada}
+                  onChange={(e) => setActivas((p) => ({ ...p, [area]: e.target.checked }))}
+                />
+                {AREA_LABELS[area]}
+                {asignada && (
+                  <span className="text-xs font-normal text-green-700">— registrada</span>
+                )}
+              </label>
+
+              {asignada && editId !== asignada.id && (
+                <div className="text-sm pl-6 space-y-1">
+                  <p className="text-[#6c757d]">{asignada.descripcion}</p>
+                  <p className="text-xs">
+                    Responsable:{' '}
+                    {asignada.responsableNombre ?? asignada.responsable?.nombreCompleto}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditId(asignada.id);
+                        setEditDesc(asignada.descripcion);
+                        setEditResp(asignada.responsableId ?? '');
+                      }}
+                      className="text-xs underline"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => eliminar(asignada.id)}
+                      className="text-xs text-red-600 underline"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {asignada && editId === asignada.id && (
+                <div className="pl-6 space-y-2">
                   <textarea
                     value={editDesc}
                     onChange={(e) => setEditDesc(e.target.value)}
                     rows={2}
-                    className="w-full rounded-lg border px-3 py-2"
+                    className="w-full rounded-lg border px-3 py-2 text-sm"
                   />
                   <select
                     value={editResp}
                     onChange={(e) => setEditResp(e.target.value)}
-                    className="w-full rounded-lg border px-3 py-2"
+                    className="w-full rounded-lg border px-3 py-2 text-sm"
                   >
                     {empleados.map((e) => (
                       <option key={e.id} value={e.id}>
@@ -159,7 +262,7 @@ export function DiagnosticoPanel({
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => guardarEdicion(a.id)}
+                      onClick={() => guardarEdicion(asignada.id)}
                       disabled={loading}
                       className="text-xs bg-[#1a1a1a] text-white px-3 py-1 rounded-lg"
                     >
@@ -169,79 +272,62 @@ export function DiagnosticoPanel({
                       Cancelar
                     </button>
                   </div>
-                </>
-              ) : (
-                <>
-                  <p className="font-medium">
-                    {AREA_LABELS[a.area]} — {a.responsableNombre ?? a.responsable?.nombreCompleto}
-                  </p>
-                  <p className="text-[#6c757d]">{a.descripcion}</p>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditId(a.id);
-                        setEditDesc(a.descripcion);
-                        setEditResp(a.responsableId ?? '');
-                      }}
-                      className="text-xs underline"
-                    >
-                      Editar
-                    </button>
-                    <button type="button" onClick={() => eliminar(a.id)} className="text-xs text-red-600 underline">
-                      Eliminar
-                    </button>
-                  </div>
-                </>
+                </div>
+              )}
+
+              {!asignada && checked && (
+                <form onSubmit={(e) => guardarArea(e, area)} className="pl-6 space-y-2">
+                  <textarea
+                    value={descArea[area] ?? ''}
+                    onChange={(e) => setDescArea((p) => ({ ...p, [area]: e.target.value }))}
+                    rows={2}
+                    placeholder="Escribe el diagnóstico de esta área"
+                    className="w-full rounded-lg border px-3 py-2 text-sm"
+                  />
+                  <select
+                    value={respArea[area] ?? ''}
+                    onChange={(e) => setRespArea((p) => ({ ...p, [area]: e.target.value }))}
+                    className="w-full rounded-lg border px-3 py-2 text-sm"
+                  >
+                    <option value="">Responsable</option>
+                    {empleados.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.nombreCompleto} — {e.especialidad.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="rounded-lg bg-[#1a1a1a] text-white px-3 py-1.5 text-xs disabled:opacity-50"
+                  >
+                    Guardar asignación
+                  </button>
+                </form>
               )}
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      <form onSubmit={agregar} className="rounded-lg bg-gray-50 border p-4 space-y-3">
-        <p className="text-sm font-medium">Nueva observación por área</p>
-        <select
-          value={area}
-          onChange={(e) => setArea(e.target.value as AreaIntervencion)}
-          className="w-full rounded-lg border px-3 py-2"
-        >
-          {AREAS.map((a) => (
-            <option key={a} value={a} disabled={areasOcupadas.has(a)}>
-              {AREA_LABELS[a]}
-              {areasOcupadas.has(a) ? ' (ya asignada)' : ''}
-            </option>
-          ))}
-        </select>
+      <div className="rounded-lg bg-gray-50 border p-4 space-y-2">
+        <label className="block text-sm font-medium">Otras observaciones (opcional)</label>
         <textarea
-          value={descripcion}
-          onChange={(e) => setDescripcion(e.target.value)}
-          rows={2}
-          placeholder="Observación del diagnóstico"
-          className="w-full rounded-lg border px-3 py-2"
-          required
+          value={nota}
+          onChange={(e) => setNota(e.target.value)}
+          rows={3}
+          placeholder="Notas generales del diagnóstico"
+          className="w-full rounded-lg border px-3 py-2 text-sm"
         />
-        <select
-          value={responsableId}
-          onChange={(e) => setResponsableId(e.target.value)}
-          className="w-full rounded-lg border px-3 py-2"
-          required
-        >
-          <option value="">Responsable *</option>
-          {empleados.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.nombreCompleto} — {e.especialidad.replace(/_/g, ' ')}
-            </option>
-          ))}
-        </select>
         <button
-          type="submit"
-          disabled={loading || areasOcupadas.has(area)}
-          className="rounded-lg bg-[#1a1a1a] text-white px-4 py-2 text-sm disabled:opacity-50"
+          type="button"
+          disabled={loading || !nota.trim()}
+          onClick={guardarNota}
+          className="rounded-lg border px-3 py-1.5 text-xs disabled:opacity-50"
         >
-          Agregar asignación
+          Guardar nota
         </button>
-      </form>
+      </div>
 
       {!hayAsignaciones && (
         <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-4">
@@ -256,7 +342,6 @@ export function DiagnosticoPanel({
               rows={2}
               placeholder="Describa por qué no requiere mantenimiento"
               className="w-full rounded-lg border px-3 py-2 text-sm"
-              required
             />
           )}
         </div>
@@ -264,18 +349,34 @@ export function DiagnosticoPanel({
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
-      <button
-        type="button"
-        disabled={loading || (!hayAsignaciones && (!noRequiere || !motivo.trim()))}
-        onClick={finalizar}
-        className="rounded-lg bg-[#f5c842] px-4 py-2 font-semibold text-sm disabled:opacity-50"
-      >
-        {loading
-          ? 'Guardando...'
-          : hayAsignaciones
-            ? 'Finalizar diagnóstico → Mantenimiento'
-            : 'Finalizar → Lista para venta'}
-      </button>
+      <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={loading}
+          onClick={pasarAMantenimiento}
+          className="rounded-lg bg-[#1a1a1a] text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          {loading ? 'Guardando...' : 'Pasar a mantenimiento'}
+        </button>
+
+        {!hayAsignaciones && (
+          <button
+            type="button"
+            disabled={loading || !noRequiere || !motivo.trim()}
+            onClick={finalizarListaVenta}
+            className="rounded-lg bg-[#f5c842] px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            Finalizar → Lista para venta
+          </button>
+        )}
+      </div>
+
+      {hayAsignaciones && (
+        <p className="text-xs text-[#6c757d]">
+          Con observaciones por área registradas, use &quot;Pasar a mantenimiento&quot; para continuar el
+          flujo.
+        </p>
+      )}
     </div>
   );
 }

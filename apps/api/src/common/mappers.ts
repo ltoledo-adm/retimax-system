@@ -202,6 +202,7 @@ export function toMaquinaDto(
   imagenes?: Array<{
     id: string;
     maquinaId: string;
+    intervencionId?: string | null;
     etapa: string;
     url: string;
     thumbnailUrl: string;
@@ -300,6 +301,7 @@ export function toMaquinaDto(
       id: img.id,
       maquinaId: img.maquinaId,
       etapa: img.etapa,
+      intervencionId: img.intervencionId ?? null,
       url: img.url,
       thumbnailUrl: img.thumbnailUrl,
       createdAt: img.createdAt.toISOString(),

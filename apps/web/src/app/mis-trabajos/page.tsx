@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { EstadoIntervencion, IntervencionDto } from '@retimax/shared-types';
 import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
+import { ImagePicker } from '@/components/ImagePicker';
 import { apiFetch } from '@/lib/api';
 import { formatDateTime } from '@/lib/dates';
 import { maquinaDetalleLinea, maquinaNombrePrincipal } from '@/lib/maquina-display';
@@ -25,6 +26,8 @@ export default function MisTrabajosPage() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [detalle, setDetalle] = useState('');
   const [observaciones, setObservaciones] = useState('');
+  const [fotosPorTrabajo, setFotosPorTrabajo] = useState<Record<string, File[]>>({});
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -40,6 +43,23 @@ export default function MisTrabajosPage() {
     load();
   }, []);
 
+  async function subirFotos(trabajoId: string) {
+    const files = fotosPorTrabajo[trabajoId] ?? [];
+    if (!files.length) return;
+    setUploadingId(trabajoId);
+    setError('');
+    try {
+      const form = new FormData();
+      files.forEach((f) => form.append('files', f));
+      await apiFetch(`/intervenciones/${trabajoId}/imagenes/lote`, { method: 'POST', body: form });
+      setFotosPorTrabajo((p) => ({ ...p, [trabajoId]: [] }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al subir fotos');
+    } finally {
+      setUploadingId(null);
+    }
+  }
+
   async function iniciar(id: string) {
     setError('');
     setActionId(id);
@@ -50,6 +70,7 @@ export default function MisTrabajosPage() {
       });
       setDetalle('');
       await load();
+      await subirFotos(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar');
     } finally {
@@ -66,6 +87,7 @@ export default function MisTrabajosPage() {
         method: 'PATCH',
         body: JSON.stringify({ detalleTrabajo: detalle, observaciones: observaciones || undefined }),
       });
+      await subirFotos(id);
       setDetalle('');
       setObservaciones('');
       await load();
@@ -74,6 +96,14 @@ export default function MisTrabajosPage() {
     } finally {
       setActionId(null);
     }
+  }
+
+  function puedeSubirFotos(estado?: EstadoIntervencion) {
+    return (
+      estado === EstadoIntervencion.ASIGNADO ||
+      estado === EstadoIntervencion.EN_PROCESO ||
+      estado === EstadoIntervencion.RECHAZADO
+    );
   }
 
   return (
@@ -151,6 +181,37 @@ export default function MisTrabajosPage() {
                     <p className="text-xs text-[#6c757d]">
                       Estado máquina: {ESTADO_LABELS[t.maquina.estado as keyof typeof ESTADO_LABELS]}
                     </p>
+                  )}
+
+                  {puedeSubirFotos(t.estadoIntervencion) && (
+                    <div className="border-t pt-3">
+                      <ImagePicker
+                        label="Fotos de respaldo del trabajo (opcional)"
+                        disabled={actionId === t.id}
+                        files={fotosPorTrabajo[t.id] ?? []}
+                        onChange={(files) =>
+                          setFotosPorTrabajo((p) => ({ ...p, [t.id]: files }))
+                        }
+                        onUpload={async (files) => {
+                          setFotosPorTrabajo((p) => ({ ...p, [t.id]: files }));
+                          setUploadingId(t.id);
+                          try {
+                            const form = new FormData();
+                            files.forEach((f) => form.append('files', f));
+                            await apiFetch(`/intervenciones/${t.id}/imagenes/lote`, {
+                              method: 'POST',
+                              body: form,
+                            });
+                            setFotosPorTrabajo((p) => ({ ...p, [t.id]: [] }));
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : 'Error al subir fotos');
+                          } finally {
+                            setUploadingId(null);
+                          }
+                        }}
+                        uploading={uploadingId === t.id}
+                      />
+                    </div>
                   )}
 
                   {t.estadoIntervencion === EstadoIntervencion.ASIGNADO && (

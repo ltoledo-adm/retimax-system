@@ -189,16 +189,19 @@ model Maquina {
 }
 
 model ImagenMaquina {
-  id           String      @id @default(uuid())
-  maquinaId    String
-  maquina      Maquina     @relation(fields: [maquinaId], references: [id], onDelete: Cascade)
-  etapa        EtapaImagen
-  url          String
-  thumbnailUrl String
-  createdAt    DateTime    @default(now())
+  id             String        @id @default(uuid())
+  maquinaId      String
+  maquina        Maquina       @relation(fields: [maquinaId], references: [id], onDelete: Cascade)
+  intervencionId String?
+  intervencion   Intervencion? @relation(fields: [intervencionId], references: [id], onDelete: SetNull)
+  etapa          EtapaImagen
+  url            String
+  thumbnailUrl   String
+  createdAt      DateTime      @default(now())
 
   @@map("imagenes_maquina")
   @@index([maquinaId])
+  @@index([intervencionId])
 }
 
 model Intervencion {
@@ -226,6 +229,7 @@ model Intervencion {
   registradoPorId    String
   registradoPor      Usuario            @relation("RegistradoPor", fields: [registradoPorId], references: [id])
   createdAt          DateTime           @default(now())
+  imagenes           ImagenMaquina[]
 
   @@map("intervenciones")
   @@index([maquinaId])

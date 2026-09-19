@@ -132,12 +132,21 @@ export default function MaquinaDetailPage() {
     [maquina?.intervenciones],
   );
 
-  const hayPendientesAprobacion = intervencionesMantenimiento.some(
-    (i) => i.estadoIntervencion === EstadoIntervencion.FINALIZADO,
+  const notaDiagnostico = useMemo(
+    () =>
+      maquina?.intervenciones?.find(
+        (i) =>
+          i.tipo === TipoIntervencion.OBSERVACION_ADICIONAL &&
+          i.estadoIntervencion !== EstadoIntervencion.CANCELADO,
+      ) ?? null,
+    [maquina?.intervenciones],
   );
-  const hayTrabajoAprobado = intervencionesMantenimiento.some(
-    (i) => i.estadoIntervencion === EstadoIntervencion.APROBADO,
-  );
+
+  const todosTrabajosAprobados =
+    intervencionesMantenimiento.length > 0 &&
+    intervencionesMantenimiento.every(
+      (i) => i.estadoIntervencion === EstadoIntervencion.APROBADO,
+    );
 
   async function uploadPhotos(etapa: EtapaImagen, files: File[]) {
     setUploading(true);
@@ -589,6 +598,7 @@ export default function MaquinaDetailPage() {
                 maquinaId={params.id}
                 empleados={empleados}
                 asignaciones={asignacionesDiagnostico}
+                notaGeneral={notaDiagnostico}
                 onUpdated={load}
                 onListaParaVenta={notifyListaParaVenta}
                 maquinaNombre={maquina.nombre}
@@ -597,15 +607,11 @@ export default function MaquinaDetailPage() {
 
             {estado === EstadoMaquina.EN_MANTENIMIENTO && (
               <MantenimientoPanel
-                maquinaId={params.id}
                 trabajos={intervencionesMantenimiento}
-                uploading={uploading}
-                onUpload={async (files) => uploadPhotos(EtapaImagen.OTRA, files)}
-                onUpdated={load}
+                imagenes={maquina.imagenes ?? []}
                 onListaParaVenta={pasarListaParaVenta}
                 actionLoading={actionLoading}
-                hayPendientesAprobacion={hayPendientesAprobacion}
-                hayTrabajoAprobado={hayTrabajoAprobado}
+                todosTrabajosAprobados={todosTrabajosAprobados}
                 onAprobar={aprobarIntervencion}
                 onRechazar={rechazarIntervencion}
               />

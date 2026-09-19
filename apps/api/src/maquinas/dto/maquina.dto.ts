@@ -22,18 +22,19 @@ export class CreateMaquinaDto {
   @IsString()
   tipo?: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  marca!: string;
+  marca?: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  modelo!: string;
+  modelo?: string;
 
+  @IsOptional()
   @IsInt()
   @Min(1950)
   @Max(2100)
-  anio!: number;
+  anio?: number;
 
   @IsUUID()
   proveedorId!: string;
@@ -127,6 +128,10 @@ export class UpdateMaquinaEstadoDto {
 export class UploadImagenDto {
   @IsEnum(EtapaImagen)
   etapa!: EtapaImagen;
+
+  @IsOptional()
+  @IsUUID()
+  intervencionId?: string;
 }
 
 export class RegistrarTransitoDto {
@@ -180,6 +185,17 @@ export class FinalizarDiagnosticoDto {
   @IsString()
   @MinLength(1)
   motivoSinMantenimiento?: string;
+
+  /** Pasar a mantenimiento aunque no haya asignaciones por área */
+  @IsOptional()
+  @IsBoolean()
+  pasarAMantenimiento?: boolean;
+}
+
+export class NotaDiagnosticoDto {
+  @IsString()
+  @MinLength(1)
+  descripcion!: string;
 }
 
 /** @deprecated usar asignaciones incrementales + finalizar */

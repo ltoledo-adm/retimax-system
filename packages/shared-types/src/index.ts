@@ -123,6 +123,7 @@ export interface ImagenMaquinaDto {
   id: string;
   maquinaId: string;
   etapa: EtapaImagen;
+  intervencionId?: string | null;
   url: string;
   thumbnailUrl: string;
   createdAt: string;

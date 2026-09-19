@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,6 +9,7 @@ import {
   AreaIntervencion,
   EstadoAprobacion,
   EstadoIntervencion,
+  EtapaImagen,
   Rol,
   TipoIntervencion,
   Usuario,
@@ -15,10 +17,16 @@ import {
 import { areasForEspecialidad } from '../common/empleado-utils';
 import { toIntervencionDto } from '../common/mappers';
 import { PrismaService } from '../prisma/prisma.service';
+import { STORAGE_SERVICE, StorageService } from '../storage/storage.interface';
+
+const MAX_FOTOS_TRABAJO = 10;
 
 @Injectable()
 export class IntervencionesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+  ) {}
 
   async listMisTrabajos(user: Usuario) {
     if (user.rol !== Rol.EMPLEADO || !user.empleadoId) {
@@ -36,7 +44,7 @@ export class IntervencionesService {
       where: {
         responsableId: user.empleadoId,
         area: { in: allowedAreas },
-        tipo: { in: [TipoIntervencion.TRABAJO_REALIZADO, TipoIntervencion.DIAGNOSTICO_INICIAL] },
+        tipo: TipoIntervencion.TRABAJO_REALIZADO,
         estadoIntervencion: { notIn: [EstadoIntervencion.CANCELADO] },
       },
       include: this.includeRelations(),
@@ -80,7 +88,8 @@ export class IntervencionesService {
     const intervencion = await this.getForEmployee(id, user);
     if (
       intervencion.estadoIntervencion !== EstadoIntervencion.EN_PROCESO &&
-      intervencion.estadoIntervencion !== EstadoIntervencion.ASIGNADO
+      intervencion.estadoIntervencion !== EstadoIntervencion.ASIGNADO &&
+      intervencion.estadoIntervencion !== EstadoIntervencion.RECHAZADO
     ) {
       throw new BadRequestException('El trabajo debe estar en proceso para finalizar');
     }
@@ -121,6 +130,57 @@ export class IntervencionesService {
       include: this.includeRelations(),
     });
     return toIntervencionDto(updated);
+  }
+
+  async uploadImagenesTrabajo(id: string, user: Usuario, files: Express.Multer.File[]) {
+    const intervencion = await this.getForEmployee(id, user);
+    if (intervencion.tipo !== TipoIntervencion.TRABAJO_REALIZADO) {
+      throw new BadRequestException('Solo se pueden subir fotos a trabajos de mantenimiento');
+    }
+    if (
+      intervencion.estadoIntervencion !== EstadoIntervencion.ASIGNADO &&
+      intervencion.estadoIntervencion !== EstadoIntervencion.EN_PROCESO &&
+      intervencion.estadoIntervencion !== EstadoIntervencion.RECHAZADO
+    ) {
+      throw new BadRequestException('Solo puede subir fotos mientras el trabajo está activo');
+    }
+    if (!files?.length) throw new BadRequestException('Al menos una imagen es requerida');
+    if (files.length > MAX_FOTOS_TRABAJO) {
+      throw new BadRequestException(`Máximo ${MAX_FOTOS_TRABAJO} imágenes por carga`);
+    }
+
+    const existentes = await this.prisma.imagenMaquina.count({
+      where: { intervencionId: id },
+    });
+    if (existentes + files.length > MAX_FOTOS_TRABAJO) {
+      throw new BadRequestException(
+        `Máximo ${MAX_FOTOS_TRABAJO} fotos por trabajo. Ya hay ${existentes}.`,
+      );
+    }
+
+    const results = [];
+    for (const file of files) {
+      const stored = await this.storage.saveImage(file.buffer, file.originalname);
+      const imagen = await this.prisma.imagenMaquina.create({
+        data: {
+          maquinaId: intervencion.maquinaId,
+          intervencionId: id,
+          etapa: EtapaImagen.OTRA,
+          url: stored.url,
+          thumbnailUrl: stored.thumbnailUrl,
+        },
+      });
+      results.push({
+        id: imagen.id,
+        maquinaId: imagen.maquinaId,
+        intervencionId: imagen.intervencionId,
+        etapa: imagen.etapa,
+        url: imagen.url,
+        thumbnailUrl: imagen.thumbnailUrl,
+        createdAt: imagen.createdAt.toISOString(),
+      });
+    }
+    return results;
   }
 
   async rechazar(id: string, user: Usuario, observaciones?: string) {
