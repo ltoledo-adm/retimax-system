@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { DashboardResumen, EstadoMaquina } from '@retimax/shared-types';
+import { DashboardResumen, EstadoMaquina, IntervencionDto } from '@retimax/shared-types';
 import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
 import { apiFetch } from '@/lib/api';
@@ -10,11 +10,18 @@ import { ESTADO_COLORS, ESTADO_LABELS } from '@/lib/labels';
 
 export default function DashboardPage() {
   const [resumen, setResumen] = useState<DashboardResumen | null>(null);
+  const [pendientes, setPendientes] = useState<IntervencionDto[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch<DashboardResumen>('/maquinas/dashboard/resumen')
-      .then(setResumen)
+    Promise.all([
+      apiFetch<DashboardResumen>('/maquinas/dashboard/resumen'),
+      apiFetch<IntervencionDto[]>('/intervenciones/pendientes-aprobacion'),
+    ])
+      .then(([r, p]) => {
+        setResumen(r);
+        setPendientes(p);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -39,6 +46,28 @@ export default function DashboardPage() {
             <p className="text-[#6c757d]">Cargando...</p>
           ) : resumen ? (
             <>
+              {pendientes.length > 0 && (
+                <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-5 mb-6" role="alert">
+                  <p className="font-bold text-amber-900 text-lg">
+                    Trabajos por aprobar: {pendientes.length}
+                  </p>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    {pendientes.slice(0, 5).map((p) => (
+                      <li key={p.id}>
+                        <Link
+                          href={`/maquinas/${p.maquinaId}`}
+                          className="text-amber-900 underline font-medium"
+                        >
+                          {p.maquina?.nombre ?? 'Máquina'} — {p.responsableNombre ?? 'Técnico'}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                  {pendientes.length > 5 && (
+                    <p className="text-xs text-amber-800 mt-2">Y {pendientes.length - 5} más…</p>
+                  )}
+                </div>
+              )}
               <div className="rounded-2xl bg-[#1a1a1a] text-white p-6 mb-6">
                 <p className="text-[#6c757d] text-sm">Total de máquinas</p>
                 <p className="text-4xl font-bold text-[#f5c842]">{resumen.total}</p>

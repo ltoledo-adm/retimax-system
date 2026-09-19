@@ -15,6 +15,7 @@ import {
   Usuario,
 } from '@prisma/client';
 import { areasForEspecialidad } from '../common/empleado-utils';
+import { syncTrabajosDesdeDiagnosticoLegacy } from '../common/intervencion-sync';
 import { toIntervencionDto } from '../common/mappers';
 import { PrismaService } from '../prisma/prisma.service';
 import { STORAGE_SERVICE, StorageService } from '../storage/storage.interface';
@@ -40,6 +41,19 @@ export class IntervencionesService {
 
     const allowedAreas = areasForEspecialidad(empleado.especialidad);
 
+    const legacyMaquinas = await this.prisma.intervencion.findMany({
+      where: {
+        responsableId: user.empleadoId,
+        tipo: TipoIntervencion.DIAGNOSTICO_INICIAL,
+        estadoIntervencion: EstadoIntervencion.FINALIZADO,
+      },
+      select: { maquinaId: true },
+      distinct: ['maquinaId'],
+    });
+    for (const { maquinaId } of legacyMaquinas) {
+      await syncTrabajosDesdeDiagnosticoLegacy(this.prisma, maquinaId);
+    }
+
     const rows = await this.prisma.intervencion.findMany({
       where: {
         responsableId: user.empleadoId,
@@ -54,8 +68,23 @@ export class IntervencionesService {
   }
 
   async listPendientesAprobacion() {
+    const maquinas = await this.prisma.intervencion.findMany({
+      where: {
+        tipo: TipoIntervencion.DIAGNOSTICO_INICIAL,
+        estadoIntervencion: EstadoIntervencion.FINALIZADO,
+      },
+      select: { maquinaId: true },
+      distinct: ['maquinaId'],
+    });
+    for (const { maquinaId } of maquinas) {
+      await syncTrabajosDesdeDiagnosticoLegacy(this.prisma, maquinaId);
+    }
+
     const rows = await this.prisma.intervencion.findMany({
-      where: { estadoIntervencion: EstadoIntervencion.FINALIZADO },
+      where: {
+        tipo: TipoIntervencion.TRABAJO_REALIZADO,
+        estadoIntervencion: EstadoIntervencion.FINALIZADO,
+      },
       include: this.includeRelations(),
       orderBy: { fechaFinalizacion: 'desc' },
     });
@@ -63,13 +92,13 @@ export class IntervencionesService {
   }
 
   async iniciar(id: string, user: Usuario, detalleTrabajo?: string) {
-    const intervencion = await this.getForEmployee(id, user);
+    const intervencion = await this.resolveTrabajoMantenimiento(await this.getForEmployee(id, user));
     if (intervencion.estadoIntervencion !== EstadoIntervencion.ASIGNADO) {
       throw new BadRequestException('Solo se puede iniciar un trabajo asignado');
     }
 
     const updated = await this.prisma.intervencion.update({
-      where: { id },
+      where: { id: intervencion.id },
       data: {
         estadoIntervencion: EstadoIntervencion.EN_PROCESO,
         fechaInicio: new Date(),
@@ -85,7 +114,7 @@ export class IntervencionesService {
     user: Usuario,
     body: { detalleTrabajo?: string; observaciones?: string },
   ) {
-    const intervencion = await this.getForEmployee(id, user);
+    const intervencion = await this.resolveTrabajoMantenimiento(await this.getForEmployee(id, user));
     if (
       intervencion.estadoIntervencion !== EstadoIntervencion.EN_PROCESO &&
       intervencion.estadoIntervencion !== EstadoIntervencion.ASIGNADO &&
@@ -95,7 +124,7 @@ export class IntervencionesService {
     }
 
     const updated = await this.prisma.intervencion.update({
-      where: { id },
+      where: { id: intervencion.id },
       data: {
         estadoIntervencion: EstadoIntervencion.FINALIZADO,
         estadoAprobacion: EstadoAprobacion.PENDIENTE,
@@ -204,6 +233,43 @@ export class IntervencionesService {
       include: this.includeRelations(),
     });
     return toIntervencionDto(updated);
+  }
+
+  /** El técnico solo ejecuta TRABAJO_REALIZADO; si quedó una fila vieja de diagnóstico, redirige al trabajo real. */
+  private async resolveTrabajoMantenimiento(intervencion: {
+    id: string;
+    maquinaId: string;
+    tipo: TipoIntervencion;
+    area: AreaIntervencion;
+    responsableId: string | null;
+    estadoIntervencion: EstadoIntervencion;
+    detalleTrabajo: string | null;
+  }) {
+    if (intervencion.tipo === TipoIntervencion.TRABAJO_REALIZADO) {
+      return intervencion;
+    }
+    if (intervencion.tipo !== TipoIntervencion.DIAGNOSTICO_INICIAL) {
+      throw new BadRequestException('Esta intervención no corresponde a un trabajo de mantenimiento');
+    }
+
+    const trabajo = await this.prisma.intervencion.findFirst({
+      where: {
+        maquinaId: intervencion.maquinaId,
+        area: intervencion.area,
+        tipo: TipoIntervencion.TRABAJO_REALIZADO,
+        responsableId: intervencion.responsableId,
+        estadoIntervencion: {
+          notIn: [EstadoIntervencion.CANCELADO, EstadoIntervencion.APROBADO],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!trabajo) {
+      throw new BadRequestException(
+        'La máquina aún no pasó a mantenimiento con este trabajo. Avise al administrador.',
+      );
+    }
+    return trabajo;
   }
 
   private async getForEmployee(id: string, user: Usuario) {

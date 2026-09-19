@@ -13,6 +13,7 @@ import {
   TipoIntervencion,
   Usuario,
 } from '@prisma/client';
+import { syncTrabajosDesdeDiagnosticoLegacy } from '../common/intervencion-sync';
 import { toIntervencionDto, toMaquinaDto } from '../common/mappers';
 import { PrismaService } from '../prisma/prisma.service';
 import { STORAGE_SERVICE, StorageService } from '../storage/storage.interface';
@@ -78,6 +79,7 @@ export class MaquinasService {
   }
 
   async findOne(id: string) {
+    await syncTrabajosDesdeDiagnosticoLegacy(this.prisma, id);
     const maquina = await this.prisma.maquina.findUnique({
       where: { id },
       include: this.includeDetail(),
@@ -394,6 +396,10 @@ export class MaquinasService {
             estadoIntervencion: EstadoIntervencion.ASIGNADO,
             registradoPorId: user.id,
           },
+        });
+        await this.prisma.intervencion.update({
+          where: { id: a.id },
+          data: { estadoIntervencion: EstadoIntervencion.CANCELADO },
         });
       }
 

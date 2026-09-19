@@ -29,6 +29,7 @@ import {
   ESTADO_LABELS,
   TIPO_INTERVENCION_LABELS,
 } from '@/lib/labels';
+import { esPendienteAprobacion } from '@/lib/intervencion-status';
 
 function estadoAnteriorDe(estado: EstadoMaquina, esReserva?: boolean): EstadoMaquina | null {
   const pipeline = getPipelineForMaquina(estado, esReserva);
@@ -83,8 +84,8 @@ export default function MaquinaDetailPage() {
     setPrecioVentaUsd(data.precioVentaUsd ?? '');
   }
 
-  async function load() {
-    setLoading(true);
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const [data, emps, provs] = await Promise.all([
@@ -99,13 +100,19 @@ export default function MaquinaDetailPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar máquina');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
   useEffect(() => {
     load();
   }, [params.id]);
+
+  useEffect(() => {
+    if (maquina?.estado !== EstadoMaquina.EN_MANTENIMIENTO) return;
+    const timer = setInterval(() => load(true), 15000);
+    return () => clearInterval(timer);
+  }, [maquina?.estado, params.id]);
 
   const estado = maquina?.estado;
   const acordada = maquina?.descripcionAcordada ?? maquina?.descripcionLlegada;
@@ -140,6 +147,11 @@ export default function MaquinaDetailPage() {
           i.estadoIntervencion !== EstadoIntervencion.CANCELADO,
       ) ?? null,
     [maquina?.intervenciones],
+  );
+
+  const trabajosPendientesAprobacion = useMemo(
+    () => intervencionesMantenimiento.filter((i) => esPendienteAprobacion(i)),
+    [intervencionesMantenimiento],
   );
 
   const todosTrabajosAprobados =
@@ -510,6 +522,21 @@ export default function MaquinaDetailPage() {
           {/* CUADRO 2 — Estado + acción del paso actual */}
           <div className="rounded-xl bg-white border p-5 space-y-4">
             <EstadoPipeline estadoActual={estado} esReserva={esReserva} />
+
+            {estado === EstadoMaquina.EN_MANTENIMIENTO && trabajosPendientesAprobacion.length > 0 && (
+              <div
+                className="rounded-lg border-2 border-amber-400 bg-amber-50 px-4 py-3"
+                role="alert"
+              >
+                <p className="font-bold text-amber-900">
+                  {trabajosPendientesAprobacion.length} trabajo(s) listo(s) para aprobar
+                </p>
+                <p className="text-sm text-amber-900 mt-1">
+                  Desplácese a la sección de mantenimiento para validar lo realizado por el
+                  técnico.
+                </p>
+              </div>
+            )}
 
             {estadoPrevio && estado !== EstadoMaquina.VENDIDA && (
               <div className="rounded-lg border border-dashed border-gray-300 p-3 space-y-2">

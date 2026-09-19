@@ -2,6 +2,7 @@
 
 import { EstadoIntervencion, ImagenMaquinaDto, IntervencionDto } from '@retimax/shared-types';
 import { formatDateTime } from '@/lib/dates';
+import { esPendienteAprobacion, esTrabajoEnCurso } from '@/lib/intervencion-status';
 import { AREA_LABELS } from '@/lib/labels';
 
 type Props = {
@@ -82,18 +83,40 @@ function TrabajoCard({
       </div>
 
       {modo === 'pendiente' && (
-        <div className="flex gap-2 mt-2">
+        <div className="flex flex-wrap gap-2 mt-3">
           <button
             type="button"
             onClick={() => onAprobar(i.id)}
-            className="text-xs bg-green-700 text-white px-3 py-1 rounded-lg"
+            className="text-sm bg-green-700 text-white px-4 py-2 rounded-lg font-semibold"
           >
             Validar trabajo
           </button>
           <button
             type="button"
             onClick={() => onRechazar(i.id)}
-            className="text-xs bg-red-600 text-white px-3 py-1 rounded-lg"
+            className="text-sm bg-red-600 text-white px-4 py-2 rounded-lg font-semibold"
+          >
+            Rechazar
+          </button>
+        </div>
+      )}
+
+      {modo === 'curso' && esPendienteAprobacion(i) && (
+        <div className="flex flex-wrap gap-2 mt-3">
+          <p className="w-full text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+            Trabajo enviado. Esperando aprobación del administrador.
+          </p>
+          <button
+            type="button"
+            onClick={() => onAprobar(i.id)}
+            className="text-sm bg-green-700 text-white px-4 py-2 rounded-lg font-semibold"
+          >
+            Validar trabajo
+          </button>
+          <button
+            type="button"
+            onClick={() => onRechazar(i.id)}
+            className="text-sm bg-red-600 text-white px-4 py-2 rounded-lg font-semibold"
           >
             Rechazar
           </button>
@@ -116,15 +139,9 @@ export function MantenimientoPanel({
   onAprobar,
   onRechazar,
 }: Props) {
-  const pendientes = trabajos.filter((i) => i.estadoIntervencion === EstadoIntervencion.FINALIZADO);
-  const enCurso = trabajos.filter((i) =>
-    [
-      EstadoIntervencion.ASIGNADO,
-      EstadoIntervencion.EN_PROCESO,
-      EstadoIntervencion.RECHAZADO,
-    ].includes(i.estadoIntervencion as EstadoIntervencion),
-  );
+  const pendientes = trabajos.filter((i) => esPendienteAprobacion(i));
   const aprobados = trabajos.filter((i) => i.estadoIntervencion === EstadoIntervencion.APROBADO);
+  const enCurso = trabajos.filter((i) => esTrabajoEnCurso(i));
 
   return (
     <div className="space-y-4 border-t pt-4">
@@ -134,9 +151,18 @@ export function MantenimientoPanel({
       </p>
 
       {pendientes.length > 0 && (
-        <p className="text-sm font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-          {pendientes.length} trabajo(s) enviado(s) — esperando su aprobación.
-        </p>
+        <div
+          className="rounded-lg border-2 border-amber-400 bg-amber-50 p-4 space-y-1"
+          role="alert"
+        >
+          <p className="text-base font-bold text-amber-900">
+            Aprobación pendiente ({pendientes.length})
+          </p>
+          <p className="text-sm text-amber-900">
+            Un técnico finalizó su trabajo. Revise el detalle abajo y pulse &quot;Validar
+            trabajo&quot;.
+          </p>
+        </div>
       )}
 
       {trabajos.length === 0 ? (
