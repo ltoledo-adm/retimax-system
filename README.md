@@ -47,12 +47,16 @@ Guía completa de deploy: [docs/RAILWAY.md](docs/RAILWAY.md)
 
 **Importante:** usar siempre `http://localhost:3000` (no la IP de red) para evitar problemas de CORS.
 
-### Credenciales demo
+### Credenciales demo (solo desarrollo local)
 
-| Rol | Email | Contraseña |
-|-----|-------|------------|
-| Admin | `admin@retimax.local` | `Admin123!` |
-| Empleado | `alex@retimax.local` | `Empleado123!` |
+| Rol | Usuario | Contraseña |
+|-----|---------|------------|
+| Admin | `admin` | `Admin123!` |
+| Empleado | `alex` | `Empleado123!` |
+
+### Producción Contabo
+
+Usuario y contraseña del admin de prod están en **[docs/CREDENCIALES-LOCAL.md](docs/CREDENCIALES-LOCAL.md)** (archivo **gitignored**, solo en tu PC; no se sube a GitHub). Operación del VPS: [docs/CONTABO-PROD.md](docs/CONTABO-PROD.md).
 
 ## Inicio rápido — Docker
 

@@ -68,6 +68,9 @@ web_modules/
 # dotenv environment variable files
 .env
 .env.*
+
+# Credenciales de prod anotadas solo en local (no commitear)
+docs/CREDENCIALES-LOCAL.md
 !.env.example
 
 # Uploaded images (local dev / Docker volume)
