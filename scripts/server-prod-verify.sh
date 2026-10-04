@@ -20,14 +20,16 @@ caddy validate --config /etc/caddy/Caddyfile 2>&1 | tail -1
 echo ""
 echo "== HTTP origen =="
 curl -sf -o /dev/null -w "web_local:%{http_code}\n" http://127.0.0.1:3000/login
-curl -sf -o /dev/null -w "api_local:%{http_code}\n" -X POST http://127.0.0.1:4000/auth/login \
-  -H 'Content-Type: application/json' -d '{}' || echo "api_local:FAIL"
+code=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:4000/auth/login \
+  -H 'Content-Type: application/json' -d '{}')
+echo "api_local:${code} (400/401 = API viva)"
 
 echo ""
 echo "== HTTPS vía dominio (requiere DNS/proxy) =="
 curl -sf -o /dev/null -w "web_public:%{http_code}\n" https://retimax.tryviax.com/login || echo "web_public:FAIL"
-curl -sf -o /dev/null -w "api_public:%{http_code}\n" -X POST https://retimax-api.tryviax.com/auth/login \
-  -H 'Content-Type: application/json' -d '{}' || echo "api_public:FAIL"
+code=$(curl -s -o /dev/null -w "%{http_code}" -X POST https://retimax-api.tryviax.com/auth/login \
+  -H 'Content-Type: application/json' -d '{}')
+echo "api_public:${code} (400/401 = API viva)"
 
 echo ""
 echo "OK — revisa códigos 200/307/404 según ruta."
