@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClienteDto, CreateProveedorDto, UpdateClienteDto, UpdateProveedorDto } from './dto/catalogo.dto';
 
@@ -33,6 +33,19 @@ export class CatalogoService {
       data: { nombre: dto.nombre },
     });
     return { id: p.id, nombre: p.nombre, createdAt: p.createdAt.toISOString() };
+  }
+
+  async deleteProveedor(id: string) {
+    const p = await this.ensureProveedor(id);
+    if (p.nombre === 'Encargo / Reserva' || p.id === '00000000-0000-0000-0000-000000000003') {
+      throw new BadRequestException('Este proveedor es del sistema y no se puede eliminar');
+    }
+    const maquinas = await this.prisma.maquina.count({ where: { proveedorId: id } });
+    if (maquinas > 0) {
+      throw new BadRequestException('Hay máquinas vinculadas a este proveedor');
+    }
+    await this.prisma.proveedor.delete({ where: { id } });
+    return { ok: true };
   }
 
   listClientes() {
@@ -89,9 +102,23 @@ export class CatalogoService {
     };
   }
 
+  async deleteCliente(id: string) {
+    await this.ensureCliente(id);
+    const [pedidos, ventas] = await Promise.all([
+      this.prisma.pedido.count({ where: { clienteId: id } }),
+      this.prisma.venta.count({ where: { clienteId: id } }),
+    ]);
+    if (pedidos > 0 || ventas > 0) {
+      throw new BadRequestException('Hay pedidos o ventas vinculados a este cliente');
+    }
+    await this.prisma.cliente.delete({ where: { id } });
+    return { ok: true };
+  }
+
   private async ensureProveedor(id: string) {
     const p = await this.prisma.proveedor.findUnique({ where: { id } });
     if (!p) throw new NotFoundException('Proveedor no encontrado');
+    return p;
   }
 
   private async ensureCliente(id: string) {

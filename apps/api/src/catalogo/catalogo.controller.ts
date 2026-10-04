@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { Rol } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateClienteDto, CreateProveedorDto, UpdateClienteDto, UpdateProveedorDto } from './dto/catalogo.dto';
@@ -24,6 +24,11 @@ export class CatalogoController {
     return this.catalogoService.updateProveedor(id, dto);
   }
 
+  @Delete('proveedores/:id')
+  deleteProveedor(@Param('id') id: string) {
+    return this.catalogoService.deleteProveedor(id);
+  }
+
   @Get('clientes')
   listClientes() {
     return this.catalogoService.listClientes();
@@ -37,5 +42,10 @@ export class CatalogoController {
   @Patch('clientes/:id')
   updateCliente(@Param('id') id: string, @Body() dto: UpdateClienteDto) {
     return this.catalogoService.updateCliente(id, dto);
+  }
+
+  @Delete('clientes/:id')
+  deleteCliente(@Param('id') id: string) {
+    return this.catalogoService.deleteCliente(id);
   }
 }

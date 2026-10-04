@@ -52,6 +52,17 @@ export default function ProveedoresPage() {
     }
   }
 
+  async function handleDelete(id: string, nombre: string) {
+    if (!confirm(`¿Eliminar el proveedor "${nombre}"?`)) return;
+    setError('');
+    try {
+      await apiFetch(`/proveedores/${id}`, { method: 'DELETE' });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar');
+    }
+  }
+
   return (
     <AuthGuard adminOnly>
       <AppShell>
@@ -93,18 +104,27 @@ export default function ProveedoresPage() {
                     </button>
                   </form>
                 ) : (
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center gap-2">
                     <p className="font-medium">{p.nombre}</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditId(p.id);
-                        setEditNombre(p.nombre);
-                      }}
-                      className="text-sm text-[#6c757d] hover:text-[#1a1a1a]"
-                    >
-                      Editar
-                    </button>
+                    <div className="flex gap-3 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditId(p.id);
+                          setEditNombre(p.nombre);
+                        }}
+                        className="text-sm text-[#6c757d] hover:text-[#1a1a1a]"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(p.id, p.nombre)}
+                        className="text-sm text-red-600 hover:text-red-800"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

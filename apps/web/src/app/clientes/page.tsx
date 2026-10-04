@@ -87,6 +87,17 @@ export default function ClientesPage() {
     }
   }
 
+  async function handleDelete(id: string, nombre: string) {
+    if (!confirm(`¿Eliminar el cliente "${nombre}"?`)) return;
+    setError('');
+    try {
+      await apiFetch(`/clientes/${id}`, { method: 'DELETE' });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar');
+    }
+  }
+
   return (
     <AuthGuard adminOnly>
       <AppShell>
@@ -176,13 +187,22 @@ export default function ClientesPage() {
                         {c.telefono && <p className="text-sm text-[#6c757d]">{c.telefono}</p>}
                         {c.notas && <p className="text-sm mt-1">{c.notas}</p>}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => startEdit(c)}
-                        className="text-sm text-[#6c757d] hover:text-[#1a1a1a] shrink-0"
-                      >
-                        Editar
-                      </button>
+                      <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(c)}
+                          className="text-sm text-[#6c757d] hover:text-[#1a1a1a]"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(c.id, c.nombre)}
+                          className="text-sm text-red-600 hover:text-red-800"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -15,7 +15,7 @@ async function upsertUsuario(params: {
   email: string;
   username: string;
   nombre: string;
-  passwordHash: string;
+  passwordHash: string | null;
   rol: 'ADMIN' | 'EMPLEADO';
   empleadoId: string | null;
 }) {
@@ -28,9 +28,13 @@ async function upsertUsuario(params: {
         nombre: params.nombre,
         rol: params.rol,
         empleadoId: params.empleadoId,
-        passwordHash: params.passwordHash,
+        ...(params.passwordHash ? { passwordHash: params.passwordHash } : {}),
       },
     });
+  }
+
+  if (!params.passwordHash) {
+    throw new Error(`Falta contraseña inicial para crear usuario ${params.email}`);
   }
 
   return prisma.usuario.create({
@@ -45,16 +49,37 @@ async function upsertUsuario(params: {
   });
 }
 
+async function resolvePasswordHash(
+  envPassword: string | undefined,
+  email: string,
+  devFallback: string,
+): Promise<string | null> {
+  if (envPassword) {
+    return bcrypt.hash(envPassword, 12);
+  }
+  const existing = await prisma.usuario.findUnique({ where: { email } });
+  if (existing) {
+    return null;
+  }
+  return bcrypt.hash(devFallback, 12);
+}
+
 async function main() {
   await backfillUsernames();
 
-  const passwordHash = await bcrypt.hash('Admin123!', 12);
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@retimax.local';
+  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+  const adminPasswordHash = await resolvePasswordHash(
+    process.env.ADMIN_INITIAL_PASSWORD,
+    adminEmail,
+    'Admin123!',
+  );
 
   const admin = await upsertUsuario({
-    email: 'admin@retimax.local',
-    username: 'admin',
+    email: adminEmail,
+    username: adminUsername,
     nombre: 'Administrador RETIMAX',
-    passwordHash,
+    passwordHash: adminPasswordHash,
     rol: 'ADMIN',
     empleadoId: null,
   });
@@ -88,9 +113,14 @@ async function main() {
     },
   });
 
-  const empPassword = await bcrypt.hash('Empleado123!', 12);
+  const empEmail = 'alex@retimax.local';
+  const empPassword = await resolvePasswordHash(
+    process.env.EMPLOYEE_DEMO_PASSWORD,
+    empEmail,
+    'Empleado123!',
+  );
   const empleado = await prisma.empleado.upsert({
-    where: { email: 'alex@retimax.local' },
+    where: { email: empEmail },
     update: { carnet: '100001' },
     create: {
       nombre: 'Alex',
@@ -102,7 +132,7 @@ async function main() {
   });
 
   await upsertUsuario({
-    email: 'alex@retimax.local',
+    email: empEmail,
     username: 'alex',
     nombre: 'Alex Demo',
     passwordHash: empPassword,

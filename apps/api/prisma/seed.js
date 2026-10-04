@@ -26,6 +26,10 @@ async function upsertUsuario({ email, username, nombre, passwordHash, rol, emple
     });
   }
 
+  if (!passwordHash) {
+    throw new Error(`Falta contraseña inicial para crear usuario ${email}`);
+  }
+
   return prisma.usuario.create({
     data: {
       email,
@@ -38,16 +42,33 @@ async function upsertUsuario({ email, username, nombre, passwordHash, rol, emple
   });
 }
 
+async function resolvePasswordHash(envPassword, email, devFallback) {
+  if (envPassword) {
+    return bcrypt.hash(envPassword, 12);
+  }
+  const existing = await prisma.usuario.findUnique({ where: { email } });
+  if (existing) {
+    return null;
+  }
+  return bcrypt.hash(devFallback, 12);
+}
+
 async function main() {
   await backfillUsernames();
 
-  const passwordHash = await bcrypt.hash('Admin123!', 12);
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@retimax.local';
+  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+  const adminPasswordHash = await resolvePasswordHash(
+    process.env.ADMIN_INITIAL_PASSWORD,
+    adminEmail,
+    'Admin123!',
+  );
 
   const admin = await upsertUsuario({
-    email: 'admin@retimax.local',
-    username: 'admin',
+    email: adminEmail,
+    username: adminUsername,
     nombre: 'Administrador RETIMAX',
-    passwordHash,
+    passwordHash: adminPasswordHash,
     rol: 'ADMIN',
     empleadoId: null,
   });
@@ -81,7 +102,8 @@ async function main() {
     },
   });
 
-  const empPassword = await bcrypt.hash('Empleado123!', 12);
+  const empEmail = 'alex@retimax.local';
+  const empPassword = await resolvePasswordHash(process.env.EMPLOYEE_DEMO_PASSWORD, empEmail, 'Empleado123!');
   const empleado = await prisma.empleado.upsert({
     where: { email: 'alex@retimax.local' },
     update: { carnet: '100001' },
@@ -95,7 +117,7 @@ async function main() {
   });
 
   await upsertUsuario({
-    email: 'alex@retimax.local',
+    email: empEmail,
     username: 'alex',
     nombre: 'Alex Demo',
     passwordHash: empPassword,
