@@ -51,6 +51,18 @@ systemctl status caddy
 
 Bloques actuales: web → `127.0.0.1:3000`, API → `127.0.0.1:4000`.
 
+## Verificación rápida
+
+```bash
+bash /opt/retimax-system/scripts/server-prod-verify.sh
+```
+
+Tras cambios en Cloudflare o Caddy:
+
+```bash
+bash /opt/retimax-system/scripts/server-setup-caddy.sh
+```
+
 ## Actualizar app
 
 ```bash
@@ -100,11 +112,13 @@ Guarda el token de rclone en `/root/.config/rclone/rclone.conf` (permisos 600). 
 Pasos recomendados **solo** en `retimax.tryviax.com` y `retimax-api.tryviax.com`:
 
 1. Probar que https:// ya funciona con DNS only (hecho).
-2. En Cloudflare → **SSL/TLS** → modo **Full (strict)** (el origen ya tiene certificado válido de Caddy).
+2. En Cloudflare → **SSL/TLS** → modo **Full (strict)** (recomendado; el origen ya tiene certificado válido de Caddy).
 3. Activar **proxy naranja** en los dos registros A de RETIMAX.
 4. No tocar otros registros de `tryviax.com` que apuntan a `31.220.95.208`.
 
-Tras activar proxy: vuelve a probar login y subida de fotos. Si algo falla, revisa SSL (debe ser Full strict, no “Flexible”). Los certificados de Let's Encrypt en Caddy siguen siendo válidos en el origen; Cloudflare no los sustituye en el servidor.
+Tras activar proxy: vuelve a probar login y subida de fotos.
+
+**Si la página no carga (bucle / “demasiadas redirecciones”):** casi siempre es SSL en **Flexible** + Caddy forzando HTTPS. Solución preferida: **Full (strict)**. Alternativa: el `Caddyfile` del repo ya expone `http://` y `https://` sin redirigir :80 → :443, compatible con Flexible.
 
 ## Nuevo proyecto en el mismo VPS
 

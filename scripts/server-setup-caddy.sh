@@ -11,12 +11,23 @@ if ! command -v caddy >/dev/null 2>&1; then
 fi
 
 cat > /etc/caddy/Caddyfile <<'EOF'
-retimax.tryviax.com {
+# HTTP explícito: evita bucle 308 si Cloudflare usa SSL "Flexible" (origen en :80).
+http://retimax.tryviax.com {
 	encode gzip
 	reverse_proxy 127.0.0.1:3000
 }
 
-retimax-api.tryviax.com {
+https://retimax.tryviax.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:3000
+}
+
+http://retimax-api.tryviax.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:4000
+}
+
+https://retimax-api.tryviax.com {
 	encode gzip
 	reverse_proxy 127.0.0.1:4000
 }
