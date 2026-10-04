@@ -65,11 +65,26 @@ bash /opt/retimax-system/scripts/server-setup-caddy.sh
 
 ## Actualizar app
 
+El VPS clona `ITSOFTGL/retimax-system`; los despliegues recientes están en `ltoledo-adm/retimax-system`. En el servidor (una vez):
+
 ```bash
 cd /opt/retimax-system
-git pull
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+git remote add ltoledo https://github.com/ltoledo-adm/retimax-system.git 2>/dev/null || true
 ```
+
+Actualizar código y contenedores:
+
+```bash
+cd /opt/retimax-system
+git fetch ltoledo main
+git reset --hard ltoledo/main
+git clean -fd -e .env
+sed -i 's/\r$//' scripts/*.sh
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+bash scripts/server-setup-caddy.sh
+```
+
+(No borra `.env`.)
 
 ## Cloudflare (paso humano)
 
