@@ -1,0 +1,47 @@
+# Override de producción: bind local + red aislada + límites de memoria.
+# Uso: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+name: retimax
+
+services:
+  postgres:
+    ports: !reset []
+    networks: [retimax_internal]
+    mem_limit: 1024m
+
+  api:
+    ports: !override
+      - "127.0.0.1:4000:4000"
+    networks: [retimax_internal]
+    mem_limit: 1536m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    ports: !override
+      - "127.0.0.1:3000:3000"
+    networks: [retimax_internal]
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backup:
+    networks: [retimax_internal]
+    mem_limit: 256m
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "while true; do sh /backup.sh; sleep 86400; done",
+      ]
+
+networks:
+  retimax_internal:
+    name: retimax_internal
+    driver: bridge

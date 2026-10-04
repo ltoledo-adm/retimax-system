@@ -19,8 +19,10 @@ RUN pnpm --filter @retimax/api build
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+RUN npm install -g prisma@6.19.3
 
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/package.json

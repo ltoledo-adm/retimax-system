@@ -4,6 +4,7 @@ RUN corepack enable
 FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared-types/package.json ./packages/shared-types/
 RUN pnpm install --frozen-lockfile=false
@@ -14,7 +15,10 @@ ARG NEXT_PUBLIC_API_URL=http://localhost:4000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV DOCKER_BUILD=1
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /app/packages/shared-types/node_modules ./packages/shared-types/node_modules
 COPY . .
+RUN pnpm install --frozen-lockfile=false
 RUN pnpm --filter @retimax/shared-types build
 RUN pnpm --filter @retimax/web build
 
