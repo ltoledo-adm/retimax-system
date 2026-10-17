@@ -15,6 +15,7 @@ import {
   AsignacionDiagnosticoDto,
   FinalizarDiagnosticoDto,
   NotaDiagnosticoDto,
+  OmitirMantenimientoDto,
   UpdateAsignacionDiagnosticoDto,
 } from './dto/maquina.dto';
 import { MaquinasService } from './maquinas.service';
@@ -172,6 +173,15 @@ export class MaquinasController {
     @CurrentUser() user: Usuario,
   ) {
     return this.maquinasService.guardarNotaDiagnostico(id, dto.descripcion, user);
+  }
+
+  @Post(':id/mantenimiento/omitir')
+  omitirMantenimiento(
+    @Param('id') id: string,
+    @Body() dto: OmitirMantenimientoDto,
+    @CurrentUser() user: Usuario,
+  ) {
+    return this.maquinasService.omitirMantenimiento(id, dto.motivo, user);
   }
 
   @Patch(':id/mantenimiento/trabajos/:intervencionId')

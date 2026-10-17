@@ -5,10 +5,12 @@ import { FormEvent, useEffect, useState } from 'react';
 import {
   ClienteDto,
   EstadoMaquina,
+  HerramientaDto,
   MaquinaDto,
   PedidoDto,
   ReciboVentaDto,
   VentaDto,
+  VentaHerramientaDto,
 } from '@retimax/shared-types';
 import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
@@ -27,6 +29,9 @@ type ReservaInfo = {
 
 export default function VentasPage() {
   const [ventas, setVentas] = useState<VentaDto[]>([]);
+  const [ventasHerramientas, setVentasHerramientas] = useState<VentaHerramientaDto[]>([]);
+  const [herramientas, setHerramientas] = useState<HerramientaDto[]>([]);
+  const [tipoVenta, setTipoVenta] = useState<'MAQUINARIA' | 'HERRAMIENTA'>('MAQUINARIA');
   const [clientes, setClientes] = useState<ClienteDto[]>([]);
   const [maquinas, setMaquinas] = useState<MaquinaDto[]>([]);
   const [pedidos, setPedidos] = useState<PedidoDto[]>([]);
@@ -42,6 +47,14 @@ export default function VentasPage() {
     clienteId: '',
     precioFinalUsd: '',
     precioFinalBob: '',
+    tipoCambio: '',
+    fechaEntrega: '',
+  });
+  const [formH, setFormH] = useState({
+    herramientaId: '',
+    clienteId: '',
+    cantidad: '1',
+    precioUnitarioUsd: '',
     tipoCambio: '',
     fechaEntrega: '',
   });
@@ -87,13 +100,17 @@ export default function VentasPage() {
   }
 
   async function load() {
-    const [v, c, m, p] = await Promise.all([
+    const [v, c, m, p, h, vh] = await Promise.all([
       apiFetch<VentaDto[]>('/ventas'),
       apiFetch<ClienteDto[]>('/clientes'),
       apiFetch<MaquinaDto[]>('/maquinas'),
       apiFetch<PedidoDto[]>('/pedidos'),
+      apiFetch<HerramientaDto[]>('/herramientas'),
+      apiFetch<VentaHerramientaDto[]>('/ventas-herramientas'),
     ]);
     setVentas(v);
+    setHerramientas(h);
+    setVentasHerramientas(vh);
     setClientes(c);
     setPedidos(p);
     setMaquinas(
@@ -117,8 +134,62 @@ export default function VentasPage() {
       tipoCambio: venta.tipoCambio,
       fechaEntrega: venta.fechaEntrega.slice(0, 10),
     });
+    setTipoVenta('MAQUINARIA');
     setShowForm(true);
     setReservaInfo(null);
+  }
+
+  function onHerramientaChange(herramientaId: string) {
+    const herramienta = herramientas.find((h) => h.id === herramientaId);
+    setFormH((prev) => ({
+      ...prev,
+      herramientaId,
+      precioUnitarioUsd: herramienta?.precioCompraUsd ?? prev.precioUnitarioUsd,
+    }));
+  }
+
+  async function handleSubmitHerramienta(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const cantidad = Number(formH.cantidad);
+      const precioUnitarioUsd = formatDecimal(formH.precioUnitarioUsd);
+      const tipoCambio = formatDecimal(formH.tipoCambio, 4);
+      if (!formH.herramientaId) throw new Error('Selecciona la herramienta');
+      if (!Number.isInteger(cantidad) || cantidad < 1) throw new Error('La cantidad debe ser un entero mayor a 0');
+      if (!precioUnitarioUsd || !tipoCambio) {
+        throw new Error('Precio y tipo de cambio deben ser números válidos');
+      }
+      if (!formH.fechaEntrega) throw new Error('Selecciona la fecha de entrega');
+      if (!formH.clienteId) throw new Error('Selecciona el cliente');
+
+      await apiFetch('/ventas-herramientas', {
+        method: 'POST',
+        body: JSON.stringify({
+          herramientaId: formH.herramientaId,
+          clienteId: formH.clienteId,
+          cantidad,
+          precioUnitarioUsd,
+          tipoCambio,
+          fechaEntrega: formH.fechaEntrega,
+        }),
+      });
+      setShowForm(false);
+      setFormH({
+        herramientaId: '',
+        clienteId: '',
+        cantidad: '1',
+        precioUnitarioUsd: '',
+        tipoCambio: '',
+        fechaEntrega: '',
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al registrar la venta');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -192,7 +263,11 @@ export default function VentasPage() {
   }
 
   const totalUsd = ventas.reduce((s, v) => s + parseFloat(v.precioFinalUsd), 0);
+  const totalHerramientasUsd = ventasHerramientas.reduce((s, v) => s + parseFloat(v.precioFinalUsd), 0);
   const maquinaSel = maquinas.find((m) => m.id === form.maquinaId);
+  const herramientasEnStock = herramientas.filter((h) => h.cantidad > 0);
+  const totalHerramientaUsd = multiplyDecimals(formH.precioUnitarioUsd, formH.cantidad);
+  const totalHerramientaBob = multiplyDecimals(totalHerramientaUsd, formH.tipoCambio);
 
   return (
     <AuthGuard adminOnly>
@@ -216,8 +291,151 @@ export default function VentasPage() {
           </div>
 
           {showForm && (
-            <form onSubmit={handleSubmit} className="rounded-xl bg-white border p-6 space-y-3">
+            <form
+              onSubmit={tipoVenta === 'HERRAMIENTA' && !editVentaId ? handleSubmitHerramienta : handleSubmit}
+              className="rounded-xl bg-white border p-6 space-y-3"
+            >
               <h3 className="font-semibold">{editVentaId ? 'Editar venta' : 'Nueva venta'}</h3>
+              {!editVentaId && (
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="tipoVenta"
+                      checked={tipoVenta === 'MAQUINARIA'}
+                      onChange={() => {
+                        setTipoVenta('MAQUINARIA');
+                        setError('');
+                      }}
+                    />
+                    Venta de maquinaria
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="tipoVenta"
+                      checked={tipoVenta === 'HERRAMIENTA'}
+                      onChange={() => {
+                        setTipoVenta('HERRAMIENTA');
+                        setError('');
+                      }}
+                    />
+                    Venta de herramientas
+                  </label>
+                </div>
+              )}
+              {tipoVenta === 'HERRAMIENTA' && !editVentaId ? (
+                <>
+                  <select
+                    value={formH.herramientaId}
+                    onChange={(e) => onHerramientaChange(e.target.value)}
+                    className="w-full rounded-lg border px-3 py-2"
+                    required
+                  >
+                    <option value="">Herramienta en stock</option>
+                    {herramientasEnStock.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.nombre} — stock {h.cantidad}
+                        {h.medida ? ` — ${h.medida}` : ''} (${h.precioCompraUsd})
+                      </option>
+                    ))}
+                  </select>
+                  {herramientasEnStock.length === 0 && (
+                    <p className="text-amber-700 text-sm">No hay herramientas con stock. Regístrelas en Herramientas.</p>
+                  )}
+                  <div className="flex gap-2 items-end">
+                    <select
+                      value={formH.clienteId}
+                      onChange={(e) => setFormH((p) => ({ ...p, clienteId: e.target.value }))}
+                      className="flex-1 rounded-lg border px-3 py-2"
+                      required
+                    >
+                      <option value="">Cliente</option>
+                      {clientes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.nombre}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowClienteModal(true)}
+                      className="rounded-lg border px-3 py-2 text-sm whitespace-nowrap hover:bg-gray-50"
+                    >
+                      + Cliente
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-[#6c757d] mb-1">Cantidad</label>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={formH.cantidad}
+                        onChange={(e) => setFormH((p) => ({ ...p, cantidad: e.target.value }))}
+                        className="w-full rounded-lg border px-3 py-2"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-[#6c757d] mb-1">Precio unitario USD</label>
+                      <input
+                        value={formH.precioUnitarioUsd}
+                        onChange={(e) => setFormH((p) => ({ ...p, precioUnitarioUsd: e.target.value }))}
+                        className="w-full rounded-lg border px-3 py-2"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-[#6c757d] mb-1">Tipo de cambio</label>
+                      <input
+                        value={formH.tipoCambio}
+                        onChange={(e) => setFormH((p) => ({ ...p, tipoCambio: e.target.value }))}
+                        className="w-full rounded-lg border px-3 py-2"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-[#6c757d] mb-1">Fecha de entrega</label>
+                      <input
+                        type="date"
+                        value={formH.fechaEntrega}
+                        onChange={(e) => setFormH((p) => ({ ...p, fechaEntrega: e.target.value }))}
+                        className="w-full rounded-lg border px-3 py-2"
+                        required
+                      />
+                    </div>
+                  </div>
+                  {totalHerramientaUsd && (
+                    <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                      Total: <strong>${totalHerramientaUsd} USD</strong>
+                      {totalHerramientaBob ? ` / Bs ${totalHerramientaBob}` : ''}
+                    </p>
+                  )}
+                  {error && <p className="text-red-600 text-sm">{error}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={loading || herramientasEnStock.length === 0}
+                      className="rounded-lg bg-[#1a1a1a] text-white px-4 py-2 text-sm disabled:opacity-50"
+                    >
+                      {loading ? 'Guardando...' : 'Confirmar venta'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowForm(false);
+                        setError('');
+                      }}
+                      className="rounded-lg border px-4 py-2 text-sm"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              ) : (
+              <>
               <select
                 value={form.maquinaId}
                 onChange={(e) => onMaquinaChange(e.target.value)}
@@ -342,6 +560,8 @@ export default function VentasPage() {
                   Cancelar
                 </button>
               </div>
+              </>
+              )}
             </form>
           )}
 
@@ -402,6 +622,35 @@ export default function VentasPage() {
               </>
             )}
           </div>
+
+          <div className="rounded-xl bg-white border p-5">
+            <h3 className="font-semibold text-lg mb-3">Herramientas vendidas</h3>
+            {ventasHerramientas.length === 0 ? (
+              <p className="text-sm text-[#6c757d]">Aún no hay ventas de herramientas.</p>
+            ) : (
+              <>
+                <p className="text-sm mb-4">
+                  Total facturado: <strong>${totalHerramientasUsd.toFixed(2)} USD</strong>
+                </p>
+                <div className="space-y-2">
+                  {ventasHerramientas.map((v) => (
+                    <div key={v.id} className="rounded-lg border p-4">
+                      <p className="font-semibold">
+                        {v.herramienta?.nombre ?? 'Herramienta'} × {v.cantidad}
+                      </p>
+                      <p className="text-sm text-[#6c757d]">Cliente: {v.cliente?.nombre}</p>
+                      <p className="text-sm mt-1">
+                        ${v.precioFinalUsd} USD / Bs {v.precioFinalBob} (TC {v.tipoCambio})
+                      </p>
+                      <p className="text-xs text-[#6c757d] mt-1">
+                        {new Date(v.createdAt).toLocaleString('es-BO')}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         <ClienteModal
@@ -409,7 +658,8 @@ export default function VentasPage() {
           onClose={() => setShowClienteModal(false)}
           onCreated={(c) => {
             setClientes((prev) => [...prev, c]);
-            updateForm({ clienteId: c.id });
+            if (tipoVenta === 'HERRAMIENTA') setFormH((p) => ({ ...p, clienteId: c.id }));
+            else updateForm({ clienteId: c.id });
           }}
         />
 

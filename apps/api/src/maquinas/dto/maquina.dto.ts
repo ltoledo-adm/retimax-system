@@ -39,6 +39,10 @@ export class CreateMaquinaDto {
   @IsUUID()
   proveedorId!: string;
 
+  @IsString()
+  @Matches(/^\d+(\.\d{1,2})?$/)
+  precioCompraUsd!: string;
+
   @IsOptional()
   @IsString()
   descripcionLlegada?: string;
@@ -174,6 +178,18 @@ export class UpdateAsignacionDiagnosticoDto {
   @IsOptional()
   @IsUUID()
   responsableId?: string;
+
+  /** Texto que se agrega al detalle, sin reemplazar la observación original */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  detalleAdicional?: string;
+}
+
+export class OmitirMantenimientoDto {
+  @IsString()
+  @MinLength(3)
+  motivo!: string;
 }
 
 export class FinalizarDiagnosticoDto {

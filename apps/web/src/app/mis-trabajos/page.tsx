@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { EstadoIntervencion, IntervencionDto } from '@retimax/shared-types';
 import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
+import { AvancesList } from '@/components/AvancesList';
 import { ImagePicker } from '@/components/ImagePicker';
 import { apiFetch } from '@/lib/api';
 import { formatDateTime } from '@/lib/dates';
@@ -24,8 +25,8 @@ export default function MisTrabajosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionId, setActionId] = useState<string | null>(null);
-  const [detalle, setDetalle] = useState('');
-  const [observaciones, setObservaciones] = useState('');
+  const [diario, setDiario] = useState<Record<string, { descripcion: string; observaciones: string }>>({});
+  const [cierre, setCierre] = useState<Record<string, { detalle: string; observaciones: string }>>({});
   const [fotosPorTrabajo, setFotosPorTrabajo] = useState<Record<string, File[]>>({});
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
@@ -60,17 +61,23 @@ export default function MisTrabajosPage() {
     }
   }
 
+  function diarioDe(id: string) {
+    return diario[id] ?? { descripcion: '', observaciones: '' };
+  }
+
+  function cierreDe(id: string) {
+    return cierre[id] ?? { detalle: '', observaciones: '' };
+  }
+
   async function iniciar(id: string) {
     setError('');
     setActionId(id);
     try {
       await apiFetch(`/intervenciones/${id}/iniciar`, {
         method: 'PATCH',
-        body: JSON.stringify({ detalleTrabajo: detalle || undefined }),
+        body: JSON.stringify({}),
       });
-      setDetalle('');
       await load();
-      await subirFotos(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar');
     } finally {
@@ -78,18 +85,47 @@ export default function MisTrabajosPage() {
     }
   }
 
+  async function registrarDia(e: FormEvent, id: string) {
+    e.preventDefault();
+    const actual = diarioDe(id);
+    if (!actual.descripcion.trim()) {
+      setError('Describa lo que realizó en el día');
+      return;
+    }
+    setError('');
+    setActionId(id);
+    try {
+      await apiFetch(`/intervenciones/${id}/avances`, {
+        method: 'POST',
+        body: JSON.stringify({
+          descripcion: actual.descripcion.trim(),
+          observaciones: actual.observaciones.trim() || undefined,
+        }),
+      });
+      setDiario((p) => ({ ...p, [id]: { descripcion: '', observaciones: '' } }));
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar el avance');
+    } finally {
+      setActionId(null);
+    }
+  }
+
   async function finalizar(e: FormEvent, id: string) {
     e.preventDefault();
+    const actual = cierreDe(id);
     setError('');
     setActionId(id);
     try {
       await apiFetch(`/intervenciones/${id}/finalizar`, {
         method: 'PATCH',
-        body: JSON.stringify({ detalleTrabajo: detalle, observaciones: observaciones || undefined }),
+        body: JSON.stringify({
+          detalleTrabajo: actual.detalle,
+          observaciones: actual.observaciones || undefined,
+        }),
       });
       await subirFotos(id);
-      setDetalle('');
-      setObservaciones('');
+      setCierre((p) => ({ ...p, [id]: { detalle: '', observaciones: '' } }));
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al finalizar');
@@ -177,6 +213,7 @@ export default function MisTrabajosPage() {
                   {t.observaciones && (
                     <p className="text-sm text-[#6c757d]">Observaciones: {t.observaciones}</p>
                   )}
+                  <AvancesList avances={t.avances} />
                   {t.maquina?.estado && (
                     <p className="text-xs text-[#6c757d]">
                       Estado máquina: {ESTADO_LABELS[t.maquina.estado as keyof typeof ESTADO_LABELS]}
@@ -216,13 +253,10 @@ export default function MisTrabajosPage() {
 
                   {t.estadoIntervencion === EstadoIntervencion.ASIGNADO && (
                     <div className="border-t pt-3 space-y-2">
-                      <textarea
-                        value={detalle}
-                        onChange={(e) => setDetalle(e.target.value)}
-                        placeholder="Detalla qué vas a hacer..."
-                        rows={3}
-                        className="w-full rounded-lg border px-3 py-2 text-sm"
-                      />
+                      <p className="text-sm text-[#6c757d]">
+                        Al iniciar queda registrada la fecha y hora. Después puede anotar el avance de
+                        cada día hasta terminar.
+                      </p>
                       <button
                         onClick={() => iniciar(t.id)}
                         disabled={actionId === t.id}
@@ -235,30 +269,79 @@ export default function MisTrabajosPage() {
 
                   {(t.estadoIntervencion === EstadoIntervencion.EN_PROCESO ||
                     t.estadoIntervencion === EstadoIntervencion.RECHAZADO) && (
-                    <form onSubmit={(e) => finalizar(e, t.id)} className="border-t pt-3 space-y-2">
-                      <textarea
-                        value={detalle}
-                        onChange={(e) => setDetalle(e.target.value)}
-                        placeholder="Detalle completo del trabajo realizado *"
-                        rows={4}
-                        className="w-full rounded-lg border px-3 py-2 text-sm"
-                        required
-                      />
-                      <textarea
-                        value={observaciones}
-                        onChange={(e) => setObservaciones(e.target.value)}
-                        placeholder="Observaciones adicionales"
-                        rows={2}
-                        className="w-full rounded-lg border px-3 py-2 text-sm"
-                      />
-                      <button
-                        type="submit"
-                        disabled={actionId === t.id}
-                        className="rounded-lg bg-green-700 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                      >
-                        {actionId === t.id ? '...' : 'Finalizar y enviar a aprobación'}
-                      </button>
-                    </form>
+                    <div className="border-t pt-3 space-y-4">
+                      <form onSubmit={(e) => registrarDia(e, t.id)} className="space-y-2">
+                        <p className="text-sm font-medium">Registrar trabajo del día</p>
+                        <textarea
+                          value={diarioDe(t.id).descripcion}
+                          onChange={(e) =>
+                            setDiario((p) => ({
+                              ...p,
+                              [t.id]: { ...diarioDe(t.id), descripcion: e.target.value },
+                            }))
+                          }
+                          placeholder="Qué realizó hoy en esta máquina *"
+                          rows={3}
+                          className="w-full rounded-lg border px-3 py-2 text-sm"
+                          required
+                        />
+                        <textarea
+                          value={diarioDe(t.id).observaciones}
+                          onChange={(e) =>
+                            setDiario((p) => ({
+                              ...p,
+                              [t.id]: { ...diarioDe(t.id), observaciones: e.target.value },
+                            }))
+                          }
+                          placeholder="Observaciones del día (opcional)"
+                          rows={2}
+                          className="w-full rounded-lg border px-3 py-2 text-sm"
+                        />
+                        <button
+                          type="submit"
+                          disabled={actionId === t.id}
+                          className="rounded-lg border border-[#1a1a1a] px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                        >
+                          {actionId === t.id ? '...' : 'Guardar avance del día'}
+                        </button>
+                      </form>
+
+                      <form onSubmit={(e) => finalizar(e, t.id)} className="space-y-2">
+                        <p className="text-sm font-medium">Trabajo terminado</p>
+                        <textarea
+                          value={cierreDe(t.id).detalle}
+                          onChange={(e) =>
+                            setCierre((p) => ({
+                              ...p,
+                              [t.id]: { ...cierreDe(t.id), detalle: e.target.value },
+                            }))
+                          }
+                          placeholder="Detalle completo del trabajo realizado *"
+                          rows={3}
+                          className="w-full rounded-lg border px-3 py-2 text-sm"
+                          required
+                        />
+                        <textarea
+                          value={cierreDe(t.id).observaciones}
+                          onChange={(e) =>
+                            setCierre((p) => ({
+                              ...p,
+                              [t.id]: { ...cierreDe(t.id), observaciones: e.target.value },
+                            }))
+                          }
+                          placeholder="Observaciones al cerrar (opcional)"
+                          rows={2}
+                          className="w-full rounded-lg border px-3 py-2 text-sm"
+                        />
+                        <button
+                          type="submit"
+                          disabled={actionId === t.id}
+                          className="rounded-lg bg-green-700 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                        >
+                          {actionId === t.id ? '...' : 'Trabajo terminado'}
+                        </button>
+                      </form>
+                    </div>
                   )}
 
                   {t.estadoIntervencion === EstadoIntervencion.FINALIZADO && (

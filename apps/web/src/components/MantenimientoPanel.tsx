@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { EstadoIntervencion, ImagenMaquinaDto, IntervencionDto } from '@retimax/shared-types';
+import { AvancesList } from '@/components/AvancesList';
 import { formatDateTime } from '@/lib/dates';
 import { esPendienteAprobacion, esTrabajoEnCurso } from '@/lib/intervencion-status';
 import { AREA_LABELS } from '@/lib/labels';
@@ -9,6 +11,7 @@ type Props = {
   trabajos: IntervencionDto[];
   imagenes: ImagenMaquinaDto[];
   onListaParaVenta: () => void;
+  onOmitirMantenimiento: (motivo: string) => void;
   actionLoading: boolean;
   todosTrabajosAprobados: boolean;
   onAprobar: (id: string) => void;
@@ -55,6 +58,7 @@ function TrabajoCard({
       {i.observaciones && (
         <p className="mt-1 text-[#6c757d] text-xs">Observaciones del técnico: {i.observaciones}</p>
       )}
+      <AvancesList avances={i.avances} />
 
       {fotos.length > 0 && (
         <div className="mt-2">
@@ -134,11 +138,14 @@ export function MantenimientoPanel({
   trabajos,
   imagenes,
   onListaParaVenta,
+  onOmitirMantenimiento,
   actionLoading,
   todosTrabajosAprobados,
   onAprobar,
   onRechazar,
 }: Props) {
+  const [noRequiere, setNoRequiere] = useState(false);
+  const [motivo, setMotivo] = useState('');
   const pendientes = trabajos.filter((i) => esPendienteAprobacion(i));
   const aprobados = trabajos.filter((i) => i.estadoIntervencion === EstadoIntervencion.APROBADO);
   const enCurso = trabajos.filter((i) => esTrabajoEnCurso(i));
@@ -242,6 +249,39 @@ export function MantenimientoPanel({
           Trabajo terminado → Lista para venta
         </button>
       )}
+
+      <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-4">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={noRequiere}
+            onChange={(e) => setNoRequiere(e.target.checked)}
+          />
+          No requiere mantenimiento
+        </label>
+        {noRequiere && (
+          <>
+            <textarea
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              rows={2}
+              placeholder="Describa por qué pasa directo a la venta"
+              className="w-full rounded-lg border px-3 py-2 text-sm bg-white"
+            />
+            <p className="text-xs text-[#6c757d]">
+              Los trabajos que sigan abiertos se cancelan y la máquina pasa a lista para venta.
+            </p>
+            <button
+              type="button"
+              disabled={actionLoading || !motivo.trim()}
+              onClick={() => onOmitirMantenimiento(motivo.trim())}
+              className="rounded-lg bg-[#f5c842] px-4 py-2 text-sm font-semibold disabled:opacity-50"
+            >
+              Pasar directo a la venta
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

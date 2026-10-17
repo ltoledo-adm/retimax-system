@@ -12,6 +12,7 @@ import {
   TipoIntervencion,
 } from '@retimax/shared-types';
 import { AppShell } from '@/components/AppShell';
+import { AvancesList } from '@/components/AvancesList';
 import { AuthGuard } from '@/components/AuthGuard';
 import { AudioNoteRecorder } from '@/components/AudioNoteRecorder';
 import { DiagnosticoPanel } from '@/components/DiagnosticoPanel';
@@ -251,6 +252,23 @@ export default function MaquinaDetailPage() {
     if (maquina) notifyListaParaVenta(maquina.nombre);
   }
 
+  async function omitirMantenimiento(motivo: string) {
+    setActionLoading(true);
+    setError('');
+    try {
+      await apiFetch(`/maquinas/${params.id}/mantenimiento/omitir`, {
+        method: 'POST',
+        body: JSON.stringify({ motivo }),
+      });
+      if (maquina) notifyListaParaVenta(maquina.nombre);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al omitir mantenimiento');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   function notifyListaParaVenta(nombre: string) {
     window.alert(
       `La máquina "${nombre}" está lista para la venta. Puede pasar al módulo de Ventas para realizar la operación.`,
@@ -436,6 +454,10 @@ export default function MaquinaDetailPage() {
                 </p>
                 <p>
                   <span className="text-[#6c757d]">Registrada por:</span> {maquina.creadoPor?.nombre}
+                </p>
+                <p>
+                  <span className="text-[#6c757d]">Precio de compra:</span>{' '}
+                  {maquina.precioCompraUsd ? `$${maquina.precioCompraUsd} USD` : '—'}
                 </p>
                 {acordada && (
                   <p className="md:col-span-2 whitespace-pre-wrap">
@@ -637,6 +659,7 @@ export default function MaquinaDetailPage() {
                 trabajos={intervencionesMantenimiento}
                 imagenes={maquina.imagenes ?? []}
                 onListaParaVenta={pasarListaParaVenta}
+                onOmitirMantenimiento={omitirMantenimiento}
                 actionLoading={actionLoading}
                 todosTrabajosAprobados={todosTrabajosAprobados}
                 onAprobar={aprobarIntervencion}
@@ -710,6 +733,7 @@ export default function MaquinaDetailPage() {
                       {i.detalleTrabajo && (
                         <p className="mt-1 bg-gray-50 p-2 rounded text-xs">{i.detalleTrabajo}</p>
                       )}
+                      <AvancesList avances={i.avances} />
                     </div>
                   ))}
                 </div>

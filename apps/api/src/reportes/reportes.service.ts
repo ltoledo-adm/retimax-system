@@ -170,4 +170,71 @@ export class ReportesService {
       createdAt: i.createdAt.toISOString(),
     }));
   }
+
+  async getHerramientas(desde?: string, hasta?: string) {
+    const createdAt: { gte?: Date; lte?: Date } = {};
+    if (desde && /^\d{4}-\d{2}-\d{2}$/.test(desde)) {
+      createdAt.gte = new Date(`${desde}T00:00:00.000-04:00`);
+    }
+    if (hasta && /^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+      createdAt.lte = new Date(`${hasta}T23:59:59.999-04:00`);
+    }
+
+    const [herramientas, ventas] = await Promise.all([
+      this.prisma.herramienta.findMany({
+        where: { activo: true },
+        orderBy: { nombre: 'asc' },
+      }),
+      this.prisma.ventaHerramienta.findMany({
+        where: Object.keys(createdAt).length ? { createdAt } : undefined,
+        include: {
+          cliente: { select: { id: true, nombre: true } },
+          herramienta: { select: { id: true, nombre: true, medida: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const vendidasPorId = new Map<string, number>();
+    let unidadesVendidas = 0;
+    let totalUsd = 0;
+    let totalBob = 0;
+    for (const v of ventas) {
+      unidadesVendidas += v.cantidad;
+      totalUsd += Number(v.precioFinalUsd);
+      totalBob += Number(v.precioFinalBob);
+      vendidasPorId.set(v.herramientaId, (vendidasPorId.get(v.herramientaId) ?? 0) + v.cantidad);
+    }
+
+    return {
+      stockTotal: herramientas.reduce((sum, h) => sum + h.cantidad, 0),
+      unidadesVendidas,
+      totalVendidoUsd: totalUsd.toFixed(2),
+      totalVendidoBob: totalBob.toFixed(2),
+      herramientas: herramientas.map((h) => ({
+        id: h.id,
+        nombre: h.nombre,
+        precioCompraUsd: decimalToString(h.precioCompraUsd)!,
+        medida: h.medida,
+        dimensiones: h.dimensiones,
+        cantidad: h.cantidad,
+        thumbnailUrl: h.thumbnailUrl,
+        unidadesVendidas: vendidasPorId.get(h.id) ?? 0,
+      })),
+      ventas: ventas.map((v) => ({
+        id: v.id,
+        herramientaId: v.herramientaId,
+        herramienta: v.herramienta,
+        clienteId: v.clienteId,
+        cliente: v.cliente,
+        cantidad: v.cantidad,
+        precioUnitarioUsd: decimalToString(v.precioUnitarioUsd)!,
+        precioFinalUsd: decimalToString(v.precioFinalUsd)!,
+        precioFinalBob: decimalToString(v.precioFinalBob)!,
+        tipoCambio: decimalToString(v.tipoCambio)!,
+        fechaEntrega: v.fechaEntrega.toISOString(),
+        createdAt: v.createdAt.toISOString(),
+      })),
+    };
+  }
 }

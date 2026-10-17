@@ -109,6 +109,39 @@ export class IntervencionesService {
     return toIntervencionDto(updated, { employeeView: true });
   }
 
+  async registrarAvance(
+    id: string,
+    user: Usuario,
+    body: { descripcion: string; observaciones?: string },
+  ) {
+    const intervencion = await this.getForEmployee(id, user);
+    if (
+      intervencion.estadoIntervencion !== EstadoIntervencion.EN_PROCESO &&
+      intervencion.estadoIntervencion !== EstadoIntervencion.RECHAZADO
+    ) {
+      throw new BadRequestException('Inicie el trabajo antes de registrar el avance del día');
+    }
+
+    const descripcion = body.descripcion?.trim();
+    if (!descripcion) throw new BadRequestException('Describa lo realizado en el día');
+
+    await this.prisma.avanceDiario.create({
+      data: {
+        intervencionId: id,
+        descripcion,
+        observaciones: body.observaciones?.trim() || null,
+        registradoEn: new Date(),
+        registradoPorId: user.id,
+      },
+    });
+
+    const updated = await this.prisma.intervencion.findUniqueOrThrow({
+      where: { id },
+      include: this.includeRelations(),
+    });
+    return toIntervencionDto(updated, { employeeView: true });
+  }
+
   async finalizar(
     id: string,
     user: Usuario,
@@ -301,6 +334,10 @@ export class IntervencionesService {
       finalizadoPor: true,
       aprobadoPor: true,
       registradoPor: true,
+      avances: {
+        orderBy: { registradoEn: 'asc' as const },
+        include: { registradoPor: { select: { id: true, nombre: true } } },
+      },
     } as const;
   }
 }

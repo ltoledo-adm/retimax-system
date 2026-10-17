@@ -85,11 +85,12 @@ model Usuario {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  maquinasCreadas   Maquina[]         @relation("MaquinaCreadaPor")
-  intervenciones    Intervencion[]    @relation("RegistradoPor")
-  aprobaciones      Intervencion[]    @relation("AprobadoPor")
-  historialEstados  HistorialEstado[]
-  refreshTokens     RefreshToken[]
+  maquinasCreadas    Maquina[]         @relation("MaquinaCreadaPor")
+  intervenciones     Intervencion[]    @relation("RegistradoPor")
+  aprobaciones       Intervencion[]    @relation("AprobadoPor")
+  historialEstados   HistorialEstado[]
+  refreshTokens      RefreshToken[]
+  avancesRegistrados AvanceDiario[]    @relation("AvanceRegistradoPor")
 
   @@map("usuarios")
 }
@@ -143,8 +144,9 @@ model Cliente {
   telefono  String?
   notas     String?
   createdAt DateTime @default(now())
-  pedidos   Pedido[]
-  ventas    Venta[]
+  pedidos           Pedido[]
+  ventas            Venta[]
+  ventasHerramienta VentaHerramienta[]
 
   @@map("clientes")
 }
@@ -230,6 +232,7 @@ model Intervencion {
   registradoPor      Usuario            @relation("RegistradoPor", fields: [registradoPorId], references: [id])
   createdAt          DateTime           @default(now())
   imagenes           ImagenMaquina[]
+  avances            AvanceDiario[]
 
   @@map("intervenciones")
   @@index([maquinaId])
@@ -311,4 +314,57 @@ model ReciboReserva {
   createdAt    DateTime @default(now())
 
   @@map("recibos_reserva")
+}
+
+model AvanceDiario {
+  id              String       @id @default(uuid())
+  intervencionId  String
+  intervencion    Intervencion @relation(fields: [intervencionId], references: [id], onDelete: Cascade)
+  descripcion     String
+  observaciones   String?
+  registradoEn    DateTime     @default(now())
+  registradoPorId String
+  registradoPor   Usuario      @relation("AvanceRegistradoPor", fields: [registradoPorId], references: [id])
+
+  @@map("avances_diarios")
+  @@index([intervencionId])
+  @@index([registradoEn])
+}
+
+model Herramienta {
+  id              String   @id @default(uuid())
+  nombre          String
+  precioCompraUsd Decimal  @db.Decimal(10, 2)
+  medida          String?
+  dimensiones     String?
+  cantidad        Int      @default(1)
+  fotoUrl         String?
+  thumbnailUrl    String?
+  activo          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  ventas VentaHerramienta[]
+
+  @@map("herramientas")
+}
+
+model VentaHerramienta {
+  id                String      @id @default(uuid())
+  herramientaId     String
+  herramienta       Herramienta @relation(fields: [herramientaId], references: [id])
+  clienteId         String
+  cliente           Cliente     @relation(fields: [clienteId], references: [id])
+  cantidad          Int
+  precioUnitarioUsd Decimal     @db.Decimal(10, 2)
+  precioFinalUsd    Decimal     @db.Decimal(10, 2)
+  precioFinalBob    Decimal     @db.Decimal(10, 2)
+  tipoCambio        Decimal     @db.Decimal(10, 4)
+  fechaEntrega      DateTime
+  createdAt         DateTime    @default(now())
+
+  @@map("ventas_herramienta")
+  @@index([herramientaId])
+  @@index([clienteId])
+  @@index([createdAt])
 }

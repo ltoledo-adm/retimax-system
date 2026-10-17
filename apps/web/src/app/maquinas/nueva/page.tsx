@@ -12,6 +12,7 @@ export default function NuevaMaquinaPage() {
   const router = useRouter();
   const [proveedores, setProveedores] = useState<ProveedorDto[]>([]);
   const [nombre, setNombre] = useState('');
+  const [precioCompraUsd, setPrecioCompraUsd] = useState('');
   const [tipo, setTipo] = useState('');
   const [marca, setMarca] = useState('');
   const [modelo, setModelo] = useState('');
@@ -47,6 +48,7 @@ export default function NuevaMaquinaPage() {
         method: 'POST',
         body: JSON.stringify({
           nombre: nombre.trim(),
+          precioCompraUsd: Number(precioCompraUsd).toFixed(2),
           tipo: tipo.trim() || undefined,
           marca: marca.trim() || undefined,
           modelo: modelo.trim() || undefined,
@@ -78,15 +80,30 @@ export default function NuevaMaquinaPage() {
           <h2 className="text-2xl font-bold mb-2">Compra de máquina</h2>
           <p className="text-[#6c757d] text-sm mb-6">Registra la compra con los datos de la máquina.</p>
           <form onSubmit={handleSubmit} className="rounded-xl bg-white border p-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Nombre *</label>
-              <input
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                placeholder="Escribe el nombre de la maquinaria"
-                className="w-full rounded-lg border px-4 py-2"
-                required
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Nombre *</label>
+                <input
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder="Escribe el nombre de la maquinaria"
+                  className="w-full rounded-lg border px-4 py-2"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Precio de compra USD *</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={precioCompraUsd}
+                  onChange={(e) => setPrecioCompraUsd(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-lg border px-4 py-2"
+                  required
+                />
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>

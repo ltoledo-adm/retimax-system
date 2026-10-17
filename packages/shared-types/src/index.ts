@@ -158,7 +158,17 @@ export interface IntervencionDto {
   registradoPor: UsuarioDto;
   aprobadoPor?: UsuarioDto | null;
   finalizadoPor?: { id: string; nombre: string } | null;
+  avances?: AvanceDiarioDto[];
   createdAt: string;
+}
+
+export interface AvanceDiarioDto {
+  id: string;
+  intervencionId: string;
+  descripcion: string;
+  observaciones?: string | null;
+  registradoEn: string;
+  registradoPorNombre: string;
 }
 
 export interface HistorialEstadoDto {
@@ -386,10 +396,58 @@ export interface CreateMaquinaRequest {
   modelo: string;
   anio: number;
   proveedorId: string;
+  precioCompraUsd: string;
   descripcionLlegada?: string;
   descripcionAcordada?: string;
   fechaCompra?: string;
   fechaLlegadaEstimada?: string;
+}
+
+export interface HerramientaDto {
+  id: string;
+  nombre: string;
+  precioCompraUsd: string;
+  medida?: string | null;
+  dimensiones?: string | null;
+  cantidad: number;
+  fotoUrl?: string | null;
+  thumbnailUrl?: string | null;
+  activo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VentaHerramientaDto {
+  id: string;
+  herramientaId: string;
+  herramienta?: { id: string; nombre: string; medida?: string | null };
+  clienteId: string;
+  cliente?: { id: string; nombre: string };
+  cantidad: number;
+  precioUnitarioUsd: string;
+  precioFinalUsd: string;
+  precioFinalBob: string;
+  tipoCambio: string;
+  fechaEntrega: string;
+  createdAt: string;
+}
+
+export interface ReporteHerramientasDto {
+  stockTotal: number;
+  unidadesVendidas: number;
+  totalVendidoUsd: string;
+  totalVendidoBob: string;
+  herramientas: Array<{
+    id: string;
+    nombre: string;
+    precioCompraUsd: string;
+    medida: string | null;
+    dimensiones: string | null;
+    cantidad: number;
+    thumbnailUrl: string | null;
+    unidadesVendidas: number;
+  }>;
+  ventas: VentaHerramientaDto[];
 }
 
 export interface UpdateMaquinaEstadoRequest {

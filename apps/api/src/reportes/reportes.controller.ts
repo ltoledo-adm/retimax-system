@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { Rol } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ReportesService } from './reportes.service';
@@ -16,5 +16,10 @@ export class ReportesController {
   @Get('trabajos')
   getTrabajos() {
     return this.reportesService.getTrabajos();
+  }
+
+  @Get('herramientas')
+  getHerramientas(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
+    return this.reportesService.getHerramientas(desde, hasta);
   }
 }

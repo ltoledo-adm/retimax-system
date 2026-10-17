@@ -27,6 +27,8 @@ describe('RETIMAX E2E', () => {
 
     const passwordHash = await bcrypt.hash('Test1234!', 12);
     await prisma.refreshToken.deleteMany();
+    await prisma.ventaHerramienta.deleteMany();
+    await prisma.herramienta.deleteMany();
     await prisma.intervencion.deleteMany();
     await prisma.imagenMaquina.deleteMany();
     await prisma.venta.deleteMany();
@@ -78,6 +80,7 @@ describe('RETIMAX E2E', () => {
         modelo: 'QT200',
         anio: 2018,
         proveedorId,
+        precioCompraUsd: '12000.00',
         descripcionLlegada: 'Comprado con accesorios',
       })
       .expect(201);

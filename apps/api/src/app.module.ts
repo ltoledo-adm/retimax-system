@@ -10,6 +10,7 @@ import { RolesGuard } from './auth/roles.guard';
 import { CatalogoModule } from './catalogo/catalogo.module';
 import { ComercialModule } from './comercial/comercial.module';
 import { EmpleadosModule } from './empleados/empleados.module';
+import { HerramientasModule } from './herramientas/herramientas.module';
 import { IntervencionesModule } from './intervenciones/intervenciones.module';
 import { MaquinasModule } from './maquinas/maquinas.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -47,6 +48,7 @@ import { resolveUploadDir } from './storage/upload-path';
     ReportesModule,
     EmpleadosModule,
     IntervencionesModule,
+    HerramientasModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -10,6 +10,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { IsOptional, IsString, MinLength } from 'class-validator';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Rol, Usuario } from '@prisma/client';
@@ -17,6 +18,16 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { IntervencionesService } from './intervenciones.service';
+
+class RegistrarAvanceDto {
+  @IsString()
+  @MinLength(1)
+  descripcion!: string;
+
+  @IsOptional()
+  @IsString()
+  observaciones?: string;
+}
 
 @Controller()
 @UseGuards(RolesGuard)
@@ -60,6 +71,16 @@ export class IntervencionesController {
   ) {
     if (!files?.length) throw new BadRequestException('Al menos una imagen es requerida');
     return this.intervencionesService.uploadImagenesTrabajo(id, user, files);
+  }
+
+  @Post('intervenciones/:id/avances')
+  @Roles(Rol.EMPLEADO)
+  registrarAvance(
+    @Param('id') id: string,
+    @CurrentUser() user: Usuario,
+    @Body() body: RegistrarAvanceDto,
+  ) {
+    return this.intervencionesService.registrarAvance(id, user, body);
   }
 
   @Patch('intervenciones/:id/finalizar')

@@ -16,6 +16,8 @@ const AREAS: AreaIntervencion[] = [
   AreaIntervencion.MANTENIMIENTO_GENERAL,
 ];
 
+type Accion = 'edit' | 'detalle' | 'reasignar';
+
 type Props = {
   maquinaId: string;
   empleados: EmpleadoDto[];
@@ -44,9 +46,10 @@ export function DiagnosticoPanel({
   const [activas, setActivas] = useState<Record<string, boolean>>({});
   const [descArea, setDescArea] = useState<Record<string, string>>({});
   const [respArea, setRespArea] = useState<Record<string, string>>({});
-  const [editId, setEditId] = useState<string | null>(null);
+  const [accion, setAccion] = useState<{ id: string; tipo: Accion } | null>(null);
   const [editDesc, setEditDesc] = useState('');
   const [editResp, setEditResp] = useState('');
+  const [detalleExtra, setDetalleExtra] = useState('');
   const [nota, setNota] = useState(notaGeneral?.descripcion ?? '');
   const [noRequiere, setNoRequiere] = useState(false);
   const [motivo, setMotivo] = useState('');
@@ -57,15 +60,15 @@ export function DiagnosticoPanel({
     setNota(notaGeneral?.descripcion ?? '');
   }, [notaGeneral?.descripcion]);
 
-  useEffect(() => {
-    const next: Record<string, boolean> = {};
-    for (const a of AREAS) {
-      if (asignacionPorArea.has(a)) next[a] = true;
-    }
-    setActivas((prev) => ({ ...next, ...prev }));
-  }, [asignacionPorArea]);
-
   const hayAsignaciones = asignaciones.length > 0;
+
+  function abrir(id: string, tipo: Accion, actual: IntervencionDto) {
+    setAccion({ id, tipo });
+    setEditDesc(actual.descripcion);
+    setEditResp(actual.responsableId ?? '');
+    setDetalleExtra('');
+    setError('');
+  }
 
   async function guardarArea(e: FormEvent, area: AreaIntervencion) {
     e.preventDefault();
@@ -84,6 +87,7 @@ export function DiagnosticoPanel({
       });
       setDescArea((p) => ({ ...p, [area]: '' }));
       setRespArea((p) => ({ ...p, [area]: '' }));
+      setActivas((p) => ({ ...p, [area]: false }));
       onUpdated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al asignar');
@@ -92,21 +96,41 @@ export function DiagnosticoPanel({
     }
   }
 
-  async function guardarEdicion(id: string) {
+  async function guardarEdicion(id: string, tipo: Accion) {
     setLoading(true);
     setError('');
     try {
+      const body =
+        tipo === 'detalle'
+          ? { detalleAdicional: detalleExtra.trim() }
+          : tipo === 'reasignar'
+            ? { responsableId: editResp }
+            : { descripcion: editDesc.trim(), responsableId: editResp || undefined };
+
+      if (tipo === 'detalle' && !detalleExtra.trim()) {
+        setError('Escriba el detalle adicional');
+        setLoading(false);
+        return;
+      }
+      if (tipo === 'edit' && !editDesc.trim()) {
+        setError('La observación no puede quedar vacía');
+        setLoading(false);
+        return;
+      }
+      if ((tipo === 'reasignar' || tipo === 'edit') && !editResp) {
+        setError('Seleccione el responsable');
+        setLoading(false);
+        return;
+      }
+
       await apiFetch(`/maquinas/${maquinaId}/diagnostico/asignaciones/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify({
-          descripcion: editDesc.trim(),
-          responsableId: editResp || undefined,
-        }),
+        body: JSON.stringify(body),
       });
-      setEditId(null);
+      setAccion(null);
       onUpdated();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al editar');
+      setError(err instanceof Error ? err.message : 'Error al guardar');
     } finally {
       setLoading(false);
     }
@@ -119,6 +143,7 @@ export function DiagnosticoPanel({
       await apiFetch(`/maquinas/${maquinaId}/diagnostico/asignaciones/${id}/eliminar`, {
         method: 'POST',
       });
+      setAccion(null);
       onUpdated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al eliminar');
@@ -151,9 +176,7 @@ export function DiagnosticoPanel({
     try {
       await apiFetch(`/maquinas/${maquinaId}/diagnostico/finalizar`, {
         method: 'POST',
-        body: JSON.stringify(
-          hayAsignaciones ? {} : { pasarAMantenimiento: true },
-        ),
+        body: JSON.stringify(hayAsignaciones ? {} : { pasarAMantenimiento: true }),
       });
       onUpdated();
     } catch (err) {
@@ -186,96 +209,126 @@ export function DiagnosticoPanel({
   return (
     <div className="space-y-4 border-t pt-4">
       <p className="text-sm text-[#6c757d]">
-        Marque las áreas que aplican (opcional). Al activar un área puede registrar la observación y
-        asignar responsable. También puede escribir notas generales.
+        Marque las áreas que aplican. Si ya hay alguien asignado, se muestra aquí aunque vuelva
+        desde mantenimiento: puede editar, agregar detalle, cambiar de responsable o eliminar.
       </p>
 
       <div className="space-y-3">
         {AREAS.map((area) => {
           const asignada = asignacionPorArea.get(area);
-          const checked = activas[area] ?? !!asignada;
 
+          if (asignada) {
+            const abierta = accion && accion.id === asignada.id ? accion.tipo : null;
+            const responsable =
+              asignada.responsableNombre ?? asignada.responsable?.nombreCompleto ?? 'Sin responsable';
+            return (
+              <div key={area} className="rounded-lg border border-green-200 bg-green-50/60 p-3 space-y-2">
+                <p className="text-sm font-semibold">
+                  {AREA_LABELS[area]} — asignada a {responsable}
+                </p>
+                <p className="text-sm text-[#1a1a1a]">{asignada.descripcion}</p>
+                {asignada.observaciones && (
+                  <p className="text-xs text-[#6c757d] whitespace-pre-wrap">
+                    Detalle adicional: {asignada.observaciones}
+                  </p>
+                )}
+
+                {abierta === 'edit' && (
+                  <textarea
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-lg border px-3 py-2 text-sm bg-white"
+                  />
+                )}
+                {abierta === 'detalle' && (
+                  <textarea
+                    value={detalleExtra}
+                    onChange={(e) => setDetalleExtra(e.target.value)}
+                    rows={2}
+                    placeholder="Detalle que se agrega a esta asignación"
+                    className="w-full rounded-lg border px-3 py-2 text-sm bg-white"
+                  />
+                )}
+                {abierta === 'reasignar' && (
+                  <select
+                    value={editResp}
+                    onChange={(e) => setEditResp(e.target.value)}
+                    className="w-full rounded-lg border px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="">Responsable</option>
+                    {empleados.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.nombreCompleto} — {emp.especialidad.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  {abierta ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => guardarEdicion(asignada.id, abierta)}
+                        disabled={loading}
+                        className="text-xs bg-[#1a1a1a] text-white px-3 py-1.5 rounded-lg disabled:opacity-50"
+                      >
+                        Guardar
+                      </button>
+                      <button type="button" onClick={() => setAccion(null)} className="text-xs underline">
+                        Cancelar
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => abrir(asignada.id, 'edit', asignada)}
+                        className="text-xs rounded-lg border bg-white px-3 py-1.5"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => abrir(asignada.id, 'detalle', asignada)}
+                        className="text-xs rounded-lg border bg-white px-3 py-1.5"
+                      >
+                        Agregar detalle
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => abrir(asignada.id, 'reasignar', asignada)}
+                        className="text-xs rounded-lg border bg-white px-3 py-1.5"
+                      >
+                        Asignar a otro
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => eliminar(asignada.id)}
+                        className="text-xs text-red-700 underline px-1"
+                      >
+                        Eliminar
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          const checked = !!activas[area];
           return (
             <div key={area} className="rounded-lg border p-3 space-y-2">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input
                   type="checkbox"
                   checked={checked}
-                  disabled={!!asignada}
                   onChange={(e) => setActivas((p) => ({ ...p, [area]: e.target.checked }))}
                 />
                 {AREA_LABELS[area]}
-                {asignada && (
-                  <span className="text-xs font-normal text-green-700">— registrada</span>
-                )}
               </label>
-
-              {asignada && editId !== asignada.id && (
-                <div className="text-sm pl-6 space-y-1">
-                  <p className="text-[#6c757d]">{asignada.descripcion}</p>
-                  <p className="text-xs">
-                    Responsable:{' '}
-                    {asignada.responsableNombre ?? asignada.responsable?.nombreCompleto}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditId(asignada.id);
-                        setEditDesc(asignada.descripcion);
-                        setEditResp(asignada.responsableId ?? '');
-                      }}
-                      className="text-xs underline"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => eliminar(asignada.id)}
-                      className="text-xs text-red-600 underline"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {asignada && editId === asignada.id && (
-                <div className="pl-6 space-y-2">
-                  <textarea
-                    value={editDesc}
-                    onChange={(e) => setEditDesc(e.target.value)}
-                    rows={2}
-                    className="w-full rounded-lg border px-3 py-2 text-sm"
-                  />
-                  <select
-                    value={editResp}
-                    onChange={(e) => setEditResp(e.target.value)}
-                    className="w-full rounded-lg border px-3 py-2 text-sm"
-                  >
-                    {empleados.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.nombreCompleto}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => guardarEdicion(asignada.id)}
-                      disabled={loading}
-                      className="text-xs bg-[#1a1a1a] text-white px-3 py-1 rounded-lg"
-                    >
-                      Guardar
-                    </button>
-                    <button type="button" onClick={() => setEditId(null)} className="text-xs underline">
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!asignada && checked && (
+              {checked && (
                 <form onSubmit={(e) => guardarArea(e, area)} className="pl-6 space-y-2">
                   <textarea
                     value={descArea[area] ?? ''}
@@ -290,9 +343,9 @@ export function DiagnosticoPanel({
                     className="w-full rounded-lg border px-3 py-2 text-sm"
                   >
                     <option value="">Responsable</option>
-                    {empleados.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.nombreCompleto} — {e.especialidad.replace(/_/g, ' ')}
+                    {empleados.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.nombreCompleto} — {emp.especialidad.replace(/_/g, ' ')}
                       </option>
                     ))}
                   </select>
@@ -374,7 +427,7 @@ export function DiagnosticoPanel({
       {hayAsignaciones && (
         <p className="text-xs text-[#6c757d]">
           Con observaciones por área registradas, use &quot;Pasar a mantenimiento&quot; para continuar el
-          flujo.
+          flujo. Si regresa a diagnóstico, las asignaciones siguen visibles.
         </p>
       )}
     </div>

@@ -9,6 +9,7 @@ import { getUser, logout } from '@/lib/api';
 const adminNav = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/maquinas', label: 'Máquinas' },
+  { href: '/herramientas', label: 'Herramientas' },
   { href: '/empleados', label: 'Empleados' },
   { href: '/pedidos', label: 'Pedidos' },
   { href: '/ventas', label: 'Ventas' },

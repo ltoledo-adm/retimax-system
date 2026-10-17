@@ -52,6 +52,10 @@ export class MaquinasService {
           responsable: true,
           aprobadoPor: true,
           finalizadoPor: true,
+          avances: {
+            orderBy: { registradoEn: 'asc' as const },
+            include: { registradoPor: { select: { id: true, nombre: true } } },
+          },
         },
       },
       historialEstados: {
@@ -114,6 +118,11 @@ export class MaquinasService {
     const proveedor = await this.prisma.proveedor.findUnique({ where: { id: dto.proveedorId } });
     if (!proveedor) throw new BadRequestException('Proveedor no encontrado');
 
+    const precioCompra = Number(dto.precioCompraUsd);
+    if (!Number.isFinite(precioCompra) || precioCompra <= 0) {
+      throw new BadRequestException('El precio de compra debe ser mayor a 0');
+    }
+
     const maquina = await this.prisma.$transaction(async (tx) => {
       const created = await tx.maquina.create({
         data: {
@@ -125,7 +134,8 @@ export class MaquinasService {
           proveedorId: dto.proveedorId,
           descripcionLlegada: dto.descripcionLlegada,
           descripcionAcordada: dto.descripcionAcordada ?? dto.descripcionLlegada,
-          fechaCompra: dto.fechaCompra ? new Date(dto.fechaCompra) : undefined,
+          precioCompraUsd: new Prisma.Decimal(dto.precioCompraUsd),
+          fechaCompra: dto.fechaCompra ? new Date(dto.fechaCompra) : new Date(),
           fechaLlegadaEstimada: dto.fechaLlegadaEstimada
             ? new Date(dto.fechaLlegadaEstimada)
             : undefined,
@@ -333,17 +343,28 @@ export class MaquinasService {
     const intervencion = await this.getAsignacionDiagnosticoEditable(maquinaId, intervencionId);
 
     let responsableNombre = intervencion.responsableNombre;
+    let responsableId = intervencion.responsableId;
     if (dto.responsableId && dto.responsableId !== intervencion.responsableId) {
       const emp = await this.prisma.empleado.findUnique({ where: { id: dto.responsableId } });
       if (!emp?.activo) throw new BadRequestException('Empleado responsable no válido');
       responsableNombre = `${emp.nombre} ${emp.apellido}`;
+      responsableId = dto.responsableId;
     }
+
+    let observaciones = intervencion.observaciones;
+    if (dto.detalleAdicional?.trim()) {
+      const extra = dto.detalleAdicional.trim();
+      observaciones = observaciones?.trim() ? `${observaciones.trim()}\n${extra}` : extra;
+    }
+
+    const descripcion = dto.descripcion?.trim() || intervencion.descripcion;
 
     const updated = await this.prisma.intervencion.update({
       where: { id: intervencionId },
       data: {
-        descripcion: dto.descripcion?.trim(),
-        responsableId: dto.responsableId,
+        descripcion,
+        observaciones,
+        responsableId,
         responsableNombre,
         registradoPorId: user.id,
       },
@@ -353,15 +374,51 @@ export class MaquinasService {
       },
     });
 
+    await this.sincronizarTrabajoAbierto(maquinaId, intervencion.area, {
+      descripcion,
+      responsableId,
+      responsableNombre,
+    });
+
     return toIntervencionDto(updated);
   }
 
   async eliminarAsignacionDiagnostico(maquinaId: string, intervencionId: string) {
-    await this.getAsignacionDiagnosticoEditable(maquinaId, intervencionId);
+    const intervencion = await this.getAsignacionDiagnosticoEditable(maquinaId, intervencionId);
+
+    const enCurso = await this.prisma.intervencion.findFirst({
+      where: {
+        maquinaId,
+        tipo: TipoIntervencion.TRABAJO_REALIZADO,
+        area: intervencion.area,
+        estadoIntervencion: {
+          in: [EstadoIntervencion.EN_PROCESO, EstadoIntervencion.FINALIZADO, EstadoIntervencion.APROBADO],
+        },
+      },
+    });
+    if (enCurso && enCurso.estadoIntervencion !== EstadoIntervencion.APROBADO) {
+      throw new BadRequestException(
+        'Esta área ya tiene un trabajo iniciado. Espere a que termine o rechácelo en mantenimiento antes de eliminar la asignación.',
+      );
+    }
+
     await this.prisma.intervencion.update({
       where: { id: intervencionId },
       data: { estadoIntervencion: EstadoIntervencion.CANCELADO },
     });
+
+    await this.prisma.intervencion.updateMany({
+      where: {
+        maquinaId,
+        tipo: TipoIntervencion.TRABAJO_REALIZADO,
+        area: intervencion.area,
+        estadoIntervencion: {
+          in: [EstadoIntervencion.ASIGNADO, EstadoIntervencion.RECHAZADO],
+        },
+      },
+      data: { estadoIntervencion: EstadoIntervencion.CANCELADO },
+    });
+
     return { ok: true };
   }
 
@@ -384,12 +441,43 @@ export class MaquinasService {
 
     if (irMantenimiento) {
       for (const a of asignaciones) {
+        const abierto = await this.prisma.intervencion.findFirst({
+          where: {
+            maquinaId: id,
+            tipo: TipoIntervencion.TRABAJO_REALIZADO,
+            area: a.area,
+            estadoIntervencion: {
+              in: [
+                EstadoIntervencion.ASIGNADO,
+                EstadoIntervencion.EN_PROCESO,
+                EstadoIntervencion.RECHAZADO,
+                EstadoIntervencion.FINALIZADO,
+              ],
+            },
+          },
+        });
+
+        if (abierto) {
+          if (abierto.estadoIntervencion !== EstadoIntervencion.FINALIZADO) {
+            await this.prisma.intervencion.update({
+              where: { id: abierto.id },
+              data: {
+                descripcion: a.descripcion,
+                responsableId: a.responsableId,
+                responsableNombre: a.responsableNombre,
+              },
+            });
+          }
+          continue;
+        }
+
         await this.prisma.intervencion.create({
           data: {
             maquinaId: id,
             tipo: TipoIntervencion.TRABAJO_REALIZADO,
             area: a.area,
             descripcion: a.descripcion,
+            observaciones: a.observaciones,
             responsableId: a.responsableId,
             responsableNombre: a.responsableNombre,
             fechaAsignacion: new Date(),
@@ -493,6 +581,43 @@ export class MaquinasService {
       throw new NotFoundException('Asignación de diagnóstico no encontrada o no editable');
     }
     return intervencion;
+  }
+
+  async omitirMantenimiento(id: string, motivo: string, user: Usuario) {
+    const maquina = await this.prisma.maquina.findUnique({ where: { id } });
+    if (!maquina) throw new NotFoundException('Máquina no encontrada');
+    if (maquina.estado !== EstadoMaquina.EN_MANTENIMIENTO) {
+      throw new BadRequestException('Solo se puede omitir el mantenimiento en ese estado');
+    }
+
+    const texto = motivo.trim();
+    if (texto.length < 3) {
+      throw new BadRequestException('Indique por qué no requiere mantenimiento');
+    }
+
+    await this.prisma.intervencion.updateMany({
+      where: {
+        maquinaId: id,
+        tipo: TipoIntervencion.TRABAJO_REALIZADO,
+        estadoIntervencion: {
+          in: [
+            EstadoIntervencion.ASIGNADO,
+            EstadoIntervencion.EN_PROCESO,
+            EstadoIntervencion.RECHAZADO,
+            EstadoIntervencion.FINALIZADO,
+          ],
+        },
+      },
+      data: { estadoIntervencion: EstadoIntervencion.CANCELADO },
+    });
+
+    const updated = await this.changeEstado(
+      maquina,
+      EstadoMaquina.LISTA_PARA_VENTA,
+      user.id,
+      `No requiere mantenimiento: ${texto}`,
+    );
+    return toMaquinaDto(updated);
   }
 
   async actualizarTrabajoMantenimiento(
@@ -685,6 +810,33 @@ export class MaquinasService {
         },
         include: this.includeDetail(),
       });
+    });
+  }
+
+  /** Mantiene el trabajo aún no iniciado alineado con la asignación de diagnóstico. */
+  private async sincronizarTrabajoAbierto(
+    maquinaId: string,
+    area: AreaIntervencion,
+    data: {
+      descripcion: string;
+      responsableId: string | null;
+      responsableNombre: string | null;
+    },
+  ) {
+    await this.prisma.intervencion.updateMany({
+      where: {
+        maquinaId,
+        tipo: TipoIntervencion.TRABAJO_REALIZADO,
+        area,
+        estadoIntervencion: {
+          in: [
+            EstadoIntervencion.ASIGNADO,
+            EstadoIntervencion.EN_PROCESO,
+            EstadoIntervencion.RECHAZADO,
+          ],
+        },
+      },
+      data,
     });
   }
 

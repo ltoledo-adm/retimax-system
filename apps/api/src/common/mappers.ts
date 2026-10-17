@@ -97,6 +97,14 @@ export function toIntervencionDto(
   registradoPor: { id: string; nombre: string; username?: string; email: string; rol: string; activo: boolean; createdAt: Date };
   aprobadoPor?: { id: string; nombre: string; username?: string; email: string; rol: string; activo: boolean; createdAt: Date } | null;
   finalizadoPor?: { id: string; nombre: string; apellido: string } | null;
+  avances?: Array<{
+    id: string;
+    intervencionId: string;
+    descripcion: string;
+    observaciones: string | null;
+    registradoEn: Date;
+    registradoPor?: { nombre: string } | null;
+  }>;
 },
   options?: { employeeView?: boolean },
 ) {
@@ -147,6 +155,17 @@ export function toIntervencionDto(
     finalizadoPor: i.finalizadoPor
       ? { id: i.finalizadoPor.id, nombre: `${i.finalizadoPor.nombre} ${i.finalizadoPor.apellido}` }
       : null,
+    avances: (i.avances ?? [])
+      .slice()
+      .sort((a, b) => a.registradoEn.getTime() - b.registradoEn.getTime())
+      .map((a) => ({
+        id: a.id,
+        intervencionId: a.intervencionId,
+        descripcion: a.descripcion,
+        observaciones: a.observaciones,
+        registradoEn: a.registradoEn.toISOString(),
+        registradoPorNombre: a.registradoPor?.nombre ?? '',
+      })),
     createdAt: i.createdAt.toISOString(),
   };
 }
@@ -239,6 +258,14 @@ export function toMaquinaDto(
     registradoPor: { id: string; nombre: string; email: string; rol: string; activo: boolean; createdAt: Date };
     aprobadoPor?: { id: string; nombre: string; email: string; rol: string; activo: boolean; createdAt: Date } | null;
     finalizadoPor?: { id: string; nombre: string; apellido: string } | null;
+    avances?: Array<{
+      id: string;
+      intervencionId: string;
+      descripcion: string;
+      observaciones: string | null;
+      registradoEn: Date;
+      registradoPor?: { nombre: string } | null;
+    }>;
   }>;
   historialEstados?: Array<{
     id: string;

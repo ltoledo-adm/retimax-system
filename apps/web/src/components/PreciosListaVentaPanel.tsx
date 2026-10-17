@@ -16,7 +16,8 @@ export function PreciosListaVentaPanel({
   maquinaNombre,
   onSave,
 }: Props) {
-  const [editando, setEditando] = useState(!precioCompraUsd && !precioVentaUsd);
+  const compraFijada = Boolean(precioCompraUsd);
+  const [editando, setEditando] = useState(!precioVentaUsd);
   const [compra, setCompra] = useState(precioCompraUsd ?? '');
   const [venta, setVenta] = useState(precioVentaUsd ?? '');
   const [loading, setLoading] = useState(false);
@@ -28,7 +29,9 @@ export function PreciosListaVentaPanel({
     e.preventDefault();
     setLoading(true);
     try {
-      await onSave(compra, venta);
+      const compraGuardar = compraFijada ? (precioCompraUsd ?? '') : compra;
+      if (!compraGuardar.trim() || !venta.trim()) return;
+      await onSave(compraGuardar, venta);
       setEditando(false);
       setShowModal(true);
     } finally {
@@ -102,24 +105,30 @@ export function PreciosListaVentaPanel({
 
   return (
     <form onSubmit={handleSubmit} className="border-t pt-4 space-y-3">
-      <p className="text-sm font-medium">Precios (USD)</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <p className="text-sm font-medium">Precio de venta (USD)</p>
+      <p className="text-sm">
+        <span className="text-[#6c757d]">Precio de compra:</span>{' '}
+        <strong>{precioCompraUsd ? `$${precioCompraUsd}` : 'Pendiente'}</strong>
+      </p>
+      {!compraFijada && (
         <div>
-          <label className="block text-xs text-[#6c757d] mb-1">Precio de compra USD</label>
+          <label className="block text-xs text-[#6c757d] mb-1">Precio de compra USD *</label>
           <input
             value={compra}
             onChange={(e) => setCompra(e.target.value)}
             className="w-full rounded-lg border px-3 py-2"
+            required
           />
         </div>
-        <div>
-          <label className="block text-xs text-[#6c757d] mb-1">Precio de venta USD</label>
-          <input
-            value={venta}
-            onChange={(e) => setVenta(e.target.value)}
-            className="w-full rounded-lg border px-3 py-2"
-          />
-        </div>
+      )}
+      <div>
+        <label className="block text-xs text-[#6c757d] mb-1">Precio de venta USD *</label>
+        <input
+          value={venta}
+          onChange={(e) => setVenta(e.target.value)}
+          className="w-full rounded-lg border px-3 py-2"
+          required
+        />
       </div>
       <div className="flex gap-2">
         <button

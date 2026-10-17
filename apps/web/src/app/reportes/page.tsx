@@ -9,6 +9,7 @@ import {
 } from '@retimax/shared-types';
 import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
+import { HerramientasReporte } from '@/components/HerramientasReporte';
 import { PrintReport } from '@/components/PrintReport';
 import { apiFetch, imageUrl } from '@/lib/api';
 import { formatDateTime } from '@/lib/dates';
@@ -97,7 +98,7 @@ export default function ReportesPage() {
           <div>
             <h2 className="text-2xl font-bold">Reportería</h2>
             <p className="text-sm text-[#6c757d]">
-              Resumen del inventario, ventas, clientes, proveedores y trabajos
+              Resumen del inventario, ventas, clientes, proveedores, trabajos y herramientas
             </p>
           </div>
 
@@ -330,6 +331,8 @@ export default function ReportesPage() {
               </table>
             </div>
           </div>
+
+          <HerramientasReporte />
         </div>
 
         {printSection === 'resumen' && (
