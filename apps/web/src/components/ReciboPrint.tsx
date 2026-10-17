@@ -18,21 +18,37 @@ export function ReciboPrint({ title, numero, fechaEmision, children, onClose }: 
             Cerrar
           </button>
         </div>
-        <div className="print-area">
-          <div className="text-center border-b pb-4 mb-4">
-            <h1 className="text-2xl font-bold">
-              RETI<span className="text-[#f5c842]">MAX</span>
-            </h1>
-            <p className="text-sm text-[#6c757d]">{title}</p>
+        <div className="print-area text-[#1a1a1a]">
+          <div className="flex items-start justify-between gap-6 text-[10px] uppercase tracking-wide leading-snug text-[#6c757d]">
+            <p className="max-w-[48%] text-left">Radial 13, entre cuarto y quinto anillo</p>
+            <p className="max-w-[48%] text-right">Calle Viborita Chis Chis</p>
+          </div>
+          <div className="text-center border-b border-[#1a1a1a] pb-4 mb-4 mt-2">
+            <div className="mx-auto flex h-28 items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="IMPORTA & S"
+                className="h-full w-auto max-w-full object-contain"
+              />
+            </div>
+            <p className="text-sm font-semibold tracking-[0.14em] uppercase mt-1">{title}</p>
             <p className="font-mono font-semibold mt-2">{numero}</p>
             <p className="text-xs text-[#6c757d] mt-1">
               {new Date(fechaEmision).toLocaleString('es-BO')}
             </p>
           </div>
           {children}
-          <p className="text-xs text-center text-[#6c757d] mt-6">
-            Documento generado por RETIMAX — Gestión de maquinaria
-          </p>
+          <div className="mt-14 grid grid-cols-2 gap-10 text-center text-xs">
+            <div>
+              <div className="h-12" />
+              <div className="border-t border-[#1a1a1a] pt-2 font-medium">Firma del comprador</div>
+            </div>
+            <div>
+              <div className="h-12" />
+              <div className="border-t border-[#1a1a1a] pt-2 font-medium">Firma del vendedor</div>
+            </div>
+          </div>
         </div>
         <div className="flex gap-2 mt-6">
           <button
