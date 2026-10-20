@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { EstadoMaquina, Rol, Usuario } from '@prisma/client';
 import { memoryStorage } from 'multer';
@@ -53,6 +53,16 @@ export class MaquinasController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateMaquinaDto) {
     return this.maquinasService.update(id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.maquinasService.remove(id);
+  }
+
+  @Delete(':id/imagenes/:imagenId')
+  deleteImagen(@Param('id') id: string, @Param('imagenId') imagenId: string) {
+    return this.maquinasService.deleteImagen(id, imagenId);
   }
 
   @Patch(':id/estado')

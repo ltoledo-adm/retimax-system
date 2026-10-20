@@ -11,6 +11,7 @@ type Props = {
   etapa?: string;
   title?: string;
   emptyText?: string;
+  onDelete?: (imagenId: string) => Promise<void> | void;
 };
 
 function thumbSrc(img: ImagenMaquinaDto) {
@@ -25,19 +26,20 @@ function GalleryThumb({
   img,
   etapa,
   onOpen,
+  esPortada,
+  onDelete,
 }: {
   img: ImagenMaquinaDto;
   etapa: string;
   onOpen: () => void;
+  esPortada?: boolean;
+  onDelete?: (imagenId: string) => Promise<void> | void;
 }) {
   const [src, setSrc] = useState(thumbSrc(img));
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="group relative aspect-square rounded-xl overflow-hidden border-2 border-gray-200 hover:border-[#f5c842] focus:border-[#f5c842] focus:outline-none shadow-sm hover:shadow-md transition-all bg-gray-100"
-    >
+    <div className="group relative aspect-square rounded-xl overflow-hidden border-2 border-gray-200 hover:border-[#f5c842] shadow-sm hover:shadow-md transition-all bg-gray-100">
+      <button type="button" onClick={onOpen} className="absolute inset-0 focus:outline-none" aria-label="Ver grande" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
@@ -47,16 +49,36 @@ function GalleryThumb({
           if (src !== fullSrc(img)) setSrc(fullSrc(img));
         }}
       />
-      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+      {esPortada && (
+        <span className="absolute top-1 left-1 rounded bg-[#1a1a1a]/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
+          Portada
+        </span>
+      )}
+      {onDelete && (
+        <button
+          type="button"
+          onClick={() => void onDelete(img.id)}
+          className="absolute top-1 right-1 z-10 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-red-700"
+        >
+          Eliminar
+        </button>
+      )}
+      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
         <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-medium bg-black/50 px-2 py-1 rounded">
           Ver grande
         </span>
       </span>
-    </button>
+    </div>
   );
 }
 
-export function PhotoGallery({ imagenes, etapa, title, emptyText = 'Sin fotos registradas' }: Props) {
+export function PhotoGallery({
+  imagenes,
+  etapa,
+  title,
+  emptyText = 'Sin fotos registradas',
+  onDelete,
+}: Props) {
   const filtered = etapa ? imagenes.filter((i) => i.etapa === etapa) : imagenes;
   const grouped = filtered.reduce<Record<string, ImagenMaquinaDto[]>>((acc, img) => {
     if (!acc[img.etapa]) acc[img.etapa] = [];
@@ -106,6 +128,8 @@ export function PhotoGallery({ imagenes, etapa, title, emptyText = 'Sin fotos re
                     key={img.id}
                     img={img}
                     etapa={et}
+                    esPortada={img.id === flat[0]?.id}
+                    onDelete={onDelete}
                     onOpen={() => setLightboxIndex(idx)}
                   />
                 );
@@ -139,6 +163,19 @@ export function PhotoGallery({ imagenes, etapa, title, emptyText = 'Sin fotos re
               >
                 Descargar
               </a>
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = current.id;
+                    close();
+                    void onDelete(id);
+                  }}
+                  className="rounded-lg bg-red-600/90 hover:bg-red-700 text-white px-3 py-1.5 text-sm"
+                >
+                  Eliminar
+                </button>
+              )}
               <button
                 type="button"
                 onClick={close}

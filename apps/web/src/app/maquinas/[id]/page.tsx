@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   EmpleadoDto,
   EstadoIntervencion,
@@ -40,6 +40,7 @@ function estadoAnteriorDe(estado: EstadoMaquina, esReserva?: boolean): EstadoMaq
 
 export default function MaquinaDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const [maquina, setMaquina] = useState<MaquinaDto | null>(null);
   const [empleados, setEmpleados] = useState<EmpleadoDto[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorDto[]>([]);
@@ -305,10 +306,10 @@ export default function MaquinaDetailPage() {
         method: 'PATCH',
         body: JSON.stringify({
           nombre: editNombre,
-          tipo: editTipo,
-          marca: editMarca,
-          modelo: editModelo,
-          anio: editAnio ? Number(editAnio) : undefined,
+          tipo: editTipo.trim(),
+          marca: editMarca.trim(),
+          modelo: editModelo.trim(),
+          anio: editAnio.trim() ? Number(editAnio) : null,
           proveedorId: editProveedorId,
           descripcionLlegada: editDescripcion,
         }),
@@ -317,6 +318,34 @@ export default function MaquinaDetailPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar cambios');
+    }
+  }
+
+  async function eliminarMaquina() {
+    if (!maquina) return;
+    const ok = confirm(
+      `¿Eliminar "${maquinaNombrePrincipal(maquina)}"? Se borran también sus fotos, trabajos y ventas o reservas ligadas a esta máquina.`,
+    );
+    if (!ok) return;
+    setActionLoading(true);
+    setError('');
+    try {
+      await apiFetch(`/maquinas/${params.id}`, { method: 'DELETE' });
+      router.push('/maquinas');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar la máquina');
+      setActionLoading(false);
+    }
+  }
+
+  async function eliminarFoto(imagenId: string) {
+    if (!confirm('¿Eliminar esta foto?')) return;
+    setError('');
+    try {
+      await apiFetch(`/maquinas/${params.id}/imagenes/${imagenId}`, { method: 'DELETE' });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar la foto');
     }
   }
 
@@ -378,6 +407,14 @@ export default function MaquinaDetailPage() {
                     {editing ? 'Cancelar' : 'Editar'}
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={eliminarMaquina}
+                  disabled={actionLoading}
+                  className="text-sm rounded-lg border border-red-200 text-red-700 px-3 py-1 hover:bg-red-50 disabled:opacity-50"
+                >
+                  Eliminar
+                </button>
               </div>
             </div>
 
@@ -393,23 +430,20 @@ export default function MaquinaDetailPage() {
                 <input
                   value={editTipo}
                   onChange={(e) => setEditTipo(e.target.value)}
-                  placeholder="Tipo (ej. Fresadora)"
+                  placeholder="Tipo (opcional)"
                   className="rounded-lg border px-3 py-2"
-                  required
                 />
                 <input
                   value={editMarca}
                   onChange={(e) => setEditMarca(e.target.value)}
-                  placeholder="Marca *"
+                  placeholder="Marca (opcional)"
                   className="rounded-lg border px-3 py-2"
-                  required
                 />
                 <input
                   value={editModelo}
                   onChange={(e) => setEditModelo(e.target.value)}
-                  placeholder="Modelo *"
+                  placeholder="Modelo (opcional)"
                   className="rounded-lg border px-3 py-2"
-                  required
                 />
                 <input
                   type="number"
@@ -417,9 +451,8 @@ export default function MaquinaDetailPage() {
                   max={2100}
                   value={editAnio}
                   onChange={(e) => setEditAnio(e.target.value)}
-                  placeholder="Año *"
+                  placeholder="Año (opcional)"
                   className="rounded-lg border px-3 py-2"
-                  required
                 />
                 <select
                   value={editProveedorId}
@@ -479,7 +512,11 @@ export default function MaquinaDetailPage() {
               </div>
             )}
 
-            <PhotoGallery imagenes={maquina.imagenes ?? []} title="Fotos de la máquina" />
+            <PhotoGallery
+              imagenes={maquina.imagenes ?? []}
+              title="Fotos de la máquina"
+              onDelete={eliminarFoto}
+            />
 
             {maquina.pedidoReserva && (
               <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 text-sm">

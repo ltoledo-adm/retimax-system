@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { Rol } from '@prisma/client';
+import { Prisma, Rol } from '@prisma/client';
 import { normalizeUsername, suggestUsernameFromEmpleado } from '../common/empleado-utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmpleadoDto, UpdateEmpleadoDto } from './dto/empleado.dto';
@@ -181,12 +181,64 @@ export class EmpleadosService {
     });
     if (!emp) throw new NotFoundException('Empleado no encontrado');
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.empleado.update({ where: { id }, data: { activo: false } });
+    const nombre = `${emp.nombre} ${emp.apellido}`.trim();
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+      await tx.maquina.updateMany({
+        where: { empleadoDiagnosticoId: id },
+        data: { empleadoDiagnosticoId: null },
+      });
+      await tx.intervencion.updateMany({
+        where: {
+          responsableId: id,
+          OR: [{ responsableNombre: null }, { responsableNombre: '' }],
+        },
+        data: { responsableNombre: nombre },
+      });
+      await tx.intervencion.updateMany({
+        where: { responsableId: id },
+        data: { responsableId: null },
+      });
+      await tx.intervencion.updateMany({
+        where: { finalizadoPorId: id },
+        data: { finalizadoPorId: null },
+      });
+
       if (emp.usuario) {
-        await tx.usuario.update({ where: { id: emp.usuario.id }, data: { activo: false } });
+        const userId = emp.usuario.id;
+        const [maquinas, intervenciones, historial, avances, aprobaciones] = await Promise.all([
+          tx.maquina.count({ where: { creadoPorId: userId } }),
+          tx.intervencion.count({ where: { registradoPorId: userId } }),
+          tx.historialEstado.count({ where: { creadoPorId: userId } }),
+          tx.avanceDiario.count({ where: { registradoPorId: userId } }),
+          tx.intervencion.count({ where: { aprobadoPorId: userId } }),
+        ]);
+
+        if (maquinas + intervenciones + historial + avances + aprobaciones > 0) {
+          await tx.empleado.update({ where: { id }, data: { activo: false } });
+          await tx.usuario.update({ where: { id: userId }, data: { activo: false } });
+          return;
+        }
+
+        await tx.refreshToken.deleteMany({ where: { usuarioId: userId } });
+        await tx.usuario.delete({ where: { id: userId } });
       }
+
+      await tx.empleado.delete({ where: { id } });
     });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        await this.prisma.$transaction(async (tx) => {
+          await tx.empleado.update({ where: { id }, data: { activo: false } });
+          if (emp.usuario) {
+            await tx.usuario.update({ where: { id: emp.usuario.id }, data: { activo: false } });
+          }
+        });
+        return { ok: true };
+      }
+      throw error;
+    }
 
     return { ok: true };
   }

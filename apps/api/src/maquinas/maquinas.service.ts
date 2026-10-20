@@ -44,7 +44,7 @@ export class MaquinasService {
       proveedor: true,
       creadoPor: true,
       empleadoDiag: true,
-      imagenes: { orderBy: { createdAt: 'desc' as const } },
+      imagenes: { orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }] },
       intervenciones: {
         orderBy: { createdAt: 'asc' as const },
         include: {
@@ -75,7 +75,7 @@ export class MaquinasService {
       where: estado ? { estado } : undefined,
       include: {
         proveedor: true,
-        imagenes: { orderBy: { createdAt: 'desc' }, take: 1 },
+        imagenes: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 1 },
       },
       orderBy: { updatedAt: 'desc' },
     });
@@ -175,9 +175,9 @@ export class MaquinasService {
       where: { id },
       data: {
         nombre: dto.nombre?.trim(),
-        tipo: dto.tipo,
-        marca: dto.marca,
-        modelo: dto.modelo,
+        tipo: dto.tipo !== undefined ? dto.tipo.trim() : undefined,
+        marca: dto.marca !== undefined ? dto.marca.trim() : undefined,
+        modelo: dto.modelo !== undefined ? dto.modelo.trim() : undefined,
         anio: dto.anio,
         proveedorId: dto.proveedorId,
         descripcionLlegada: dto.descripcionLlegada,
@@ -190,6 +190,48 @@ export class MaquinasService {
       include: this.includeDetail(),
     });
     return toMaquinaDto(updated);
+  }
+
+  async remove(id: string) {
+    const maquina = await this.prisma.maquina.findUnique({
+      where: { id },
+      include: {
+        imagenes: true,
+        venta: { include: { reciboVenta: true } },
+        pedidos: { include: { reciboReserva: true } },
+      },
+    });
+    if (!maquina) throw new NotFoundException('Máquina no encontrada');
+
+    await this.prisma.$transaction(async (tx) => {
+      if (maquina.venta?.reciboVenta) {
+        await tx.reciboVenta.delete({ where: { id: maquina.venta.reciboVenta.id } });
+      }
+      if (maquina.venta) {
+        await tx.venta.delete({ where: { id: maquina.venta.id } });
+      }
+      for (const pedido of maquina.pedidos) {
+        if (pedido.reciboReserva) {
+          await tx.reciboReserva.delete({ where: { id: pedido.reciboReserva.id } });
+        }
+      }
+      if (maquina.pedidos.length) {
+        await tx.pedido.deleteMany({ where: { maquinaId: id } });
+      }
+      await tx.maquina.delete({ where: { id } });
+    });
+
+    await Promise.all(
+      maquina.imagenes.flatMap((img) => [
+        this.storage.deleteFile(img.url),
+        this.storage.deleteFile(img.thumbnailUrl),
+      ]),
+    );
+    if (maquina.notaAudioUrl) {
+      await this.storage.deleteFile(maquina.notaAudioUrl);
+    }
+
+    return { ok: true };
   }
 
   async registrarTransito(id: string, dto: RegistrarTransitoDto, user: Usuario) {
@@ -698,7 +740,9 @@ export class MaquinasService {
     }
 
     const results = [];
-    for (const file of files) {
+    const base = Date.now();
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       const stored = await this.storage.saveImage(file.buffer, file.originalname);
       const imagen = await this.prisma.imagenMaquina.create({
         data: {
@@ -707,6 +751,7 @@ export class MaquinasService {
           intervencionId: dto.intervencionId ?? null,
           url: stored.url,
           thumbnailUrl: stored.thumbnailUrl,
+          createdAt: new Date(base + i),
         },
       });
       results.push({
@@ -724,6 +769,18 @@ export class MaquinasService {
   async uploadImagen(id: string, dto: UploadImagenDto, file: Express.Multer.File) {
     const [result] = await this.uploadImagenes(id, dto, [file]);
     return result;
+  }
+
+  async deleteImagen(maquinaId: string, imagenId: string) {
+    const imagen = await this.prisma.imagenMaquina.findFirst({
+      where: { id: imagenId, maquinaId },
+    });
+    if (!imagen) throw new NotFoundException('Foto no encontrada');
+
+    await this.prisma.imagenMaquina.delete({ where: { id: imagen.id } });
+    await this.storage.deleteFile(imagen.url);
+    await this.storage.deleteFile(imagen.thumbnailUrl);
+    return { ok: true };
   }
 
   async createIntervencion(id: string, dto: CreateIntervencionDto, user: Usuario) {

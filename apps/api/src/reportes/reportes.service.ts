@@ -19,7 +19,7 @@ export class ReportesService {
             include: { cliente: true },
             orderBy: { createdAt: 'desc' },
           },
-          imagenes: { orderBy: { createdAt: 'desc' }, take: 1 },
+          imagenes: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 1 },
         },
         orderBy: { updatedAt: 'desc' },
       }),

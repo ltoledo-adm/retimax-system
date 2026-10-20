@@ -49,7 +49,7 @@ export default function EmpleadosPage() {
   async function load() {
     setListLoading(true);
     try {
-      const data = await apiFetch<EmpleadoDto[]>('/empleados?incluirInactivos=true');
+      const data = await apiFetch<EmpleadoDto[]>('/empleados');
       setEmpleados(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar empleados');
@@ -164,10 +164,14 @@ export default function EmpleadosPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('¿Desactivar este empleado?')) return;
-    await apiFetch(`/empleados/${id}`, { method: 'DELETE' });
-    await load();
+  async function handleDelete(id: string, nombre: string) {
+    if (!confirm(`¿Eliminar a ${nombre}? Ya no podrá entrar al sistema.`)) return;
+    try {
+      await apiFetch(`/empleados/${id}`, { method: 'DELETE' });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar el empleado');
+    }
   }
 
   return (
@@ -355,11 +359,9 @@ export default function EmpleadosPage() {
                           <button onClick={() => startEdit(e)} className="text-[#1a1a1a] underline text-xs">
                             Editar
                           </button>
-                          {e.activo && (
-                            <button onClick={() => handleDelete(e.id)} className="text-red-600 underline text-xs">
-                              Desactivar
-                            </button>
-                          )}
+                          <button onClick={() => handleDelete(e.id, e.nombreCompleto)} className="text-red-600 underline text-xs">
+                            Eliminar
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -389,11 +391,9 @@ export default function EmpleadosPage() {
                       <button onClick={() => startEdit(e)} className="text-sm underline">
                         Editar
                       </button>
-                      {e.activo && (
-                        <button onClick={() => handleDelete(e.id)} className="text-sm text-red-600 underline">
-                          Desactivar
-                        </button>
-                      )}
+                      <button onClick={() => handleDelete(e.id, e.nombreCompleto)} className="text-sm text-red-600 underline">
+                        Eliminar
+                      </button>
                     </div>
                   </div>
                 ))}

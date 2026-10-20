@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { EstadoMaquina, MaquinaDto } from '@retimax/shared-types';
 import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
@@ -13,12 +13,30 @@ import { maquinaDetalleLinea, maquinaNombrePrincipal } from '@/lib/maquina-displ
 type ViewMode = 'grid' | 'list';
 
 export default function MaquinasList() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const estadoFilter = searchParams.get('estado') as EstadoMaquina | null;
   const [maquinas, setMaquinas] = useState<MaquinaDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function eliminarMaquina(m: MaquinaDto) {
+    const ok = confirm(
+      `¿Eliminar "${maquinaNombrePrincipal(m)}"? Se borran también sus fotos y los registros ligados a esta máquina.`,
+    );
+    if (!ok) return;
+    setDeletingId(m.id);
+    try {
+      await apiFetch(`/maquinas/${m.id}`, { method: 'DELETE' });
+      setMaquinas((prev) => prev.filter((item) => item.id !== m.id));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo eliminar la máquina');
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   useEffect(() => {
     const query = estadoFilter ? `?estado=${estadoFilter}` : '';
@@ -97,10 +115,15 @@ export default function MaquinasList() {
               {filtered.map((m) => {
                 const thumb = m.imagenes?.[0]?.thumbnailUrl;
                 return (
-                  <Link
+                  <div
                     key={m.id}
-                    href={`/maquinas/${m.id}`}
-                    className="rounded-xl bg-white border overflow-hidden hover:shadow-md transition"
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => router.push(`/maquinas/${m.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') router.push(`/maquinas/${m.id}`);
+                    }}
+                    className="rounded-xl bg-white border overflow-hidden hover:shadow-md transition cursor-pointer"
                   >
                     <div className="h-40 bg-gray-100 flex items-center justify-center">
                       {thumb ? (
@@ -126,9 +149,23 @@ export default function MaquinasList() {
                           {ESTADO_LABELS[m.estado]}
                         </span>
                       </div>
-                      <p className="text-xs text-[#6c757d] mt-2">{m.proveedor?.nombre ?? '—'}</p>
+                      <div className="flex items-center justify-between gap-2 mt-2">
+                        <p className="text-xs text-[#6c757d]">{m.proveedor?.nombre ?? '—'}</p>
+                        <button
+                          type="button"
+                          disabled={deletingId === m.id}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void eliminarMaquina(m);
+                          }}
+                          className="text-xs text-red-700 underline disabled:opacity-50"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </div>
-                  </Link>
+                  </div>
                 );
               })}
             </div>
@@ -143,6 +180,7 @@ export default function MaquinasList() {
                     <th className="p-3">Proveedor</th>
                     <th className="p-3">Estado</th>
                     <th className="p-3">Precio USD</th>
+                    <th className="p-3" />
                   </tr>
                 </thead>
                 <tbody>
@@ -177,6 +215,16 @@ export default function MaquinasList() {
                           </span>
                         </td>
                         <td className="p-3">{m.precioVentaUsd ? `$${m.precioVentaUsd}` : '—'}</td>
+                        <td className="p-3 text-right">
+                          <button
+                            type="button"
+                            disabled={deletingId === m.id}
+                            onClick={() => void eliminarMaquina(m)}
+                            className="text-xs text-red-700 underline disabled:opacity-50"
+                          >
+                            Eliminar
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}

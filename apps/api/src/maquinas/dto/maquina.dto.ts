@@ -68,17 +68,14 @@ export class UpdateMaquinaDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(1)
   tipo?: string;
 
   @IsOptional()
   @IsString()
-  @MinLength(1)
   marca?: string;
 
   @IsOptional()
   @IsString()
-  @MinLength(1)
   modelo?: string;
 
   @IsOptional()
