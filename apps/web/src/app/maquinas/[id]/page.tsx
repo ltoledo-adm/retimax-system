@@ -8,6 +8,7 @@ import {
   EstadoMaquina,
   EtapaImagen,
   MaquinaDto,
+  Moneda,
   ProveedorDto,
   TipoIntervencion,
 } from '@retimax/shared-types';
@@ -31,6 +32,7 @@ import {
   TIPO_INTERVENCION_LABELS,
 } from '@/lib/labels';
 import { esPendienteAprobacion } from '@/lib/intervencion-status';
+import { formatoPrecioCompra, MONEDA_OPCIONES } from '@/lib/moneda';
 
 function estadoAnteriorDe(estado: EstadoMaquina, esReserva?: boolean): EstadoMaquina | null {
   const pipeline = getPipelineForMaquina(estado, esReserva);
@@ -66,7 +68,7 @@ export default function MaquinaDetailPage() {
   const [fotosLlegada, setFotosLlegada] = useState<File[]>([]);
 
   const [precioCompraUsd, setPrecioCompraUsd] = useState('');
-  const [precioVentaUsd, setPrecioVentaUsd] = useState('');
+  const [monedaCompra, setMonedaCompra] = useState<Moneda>(Moneda.USD);
 
   function syncForm(data: MaquinaDto) {
     setEditNombre(data.nombre);
@@ -83,7 +85,7 @@ export default function MaquinaDetailPage() {
       data.fechaLlegadaReal?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
     );
     setPrecioCompraUsd(data.precioCompraUsd ?? '');
-    setPrecioVentaUsd(data.precioVentaUsd ?? '');
+    setMonedaCompra(data.monedaCompra ?? Moneda.USD);
   }
 
   async function load(silent = false) {
@@ -236,12 +238,13 @@ export default function MaquinaDetailPage() {
     }
   }
 
-  async function savePrecio(compra: string, venta: string) {
+  async function savePrecio(compra: string, venta: string, moneda: Moneda) {
     setError('');
     await apiFetch(`/maquinas/${params.id}`, {
       method: 'PATCH',
       body: JSON.stringify({
-        precioCompraUsd: compra || undefined,
+        precioCompraUsd: compra || null,
+        monedaCompra: moneda,
         precioVentaUsd: venta || undefined,
       }),
     });
@@ -312,6 +315,8 @@ export default function MaquinaDetailPage() {
           anio: editAnio.trim() ? Number(editAnio) : null,
           proveedorId: editProveedorId,
           descripcionLlegada: editDescripcion,
+          precioCompraUsd: precioCompraUsd.trim() ? Number(precioCompraUsd).toFixed(2) : null,
+          monedaCompra,
         }),
       });
       setEditing(false);
@@ -466,6 +471,32 @@ export default function MaquinaDetailPage() {
                     </option>
                   ))}
                 </select>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-[#6c757d] mb-1">Precio de compra</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={precioCompraUsd}
+                      onChange={(e) => setPrecioCompraUsd(e.target.value)}
+                      placeholder="Opcional"
+                      className="w-full rounded-lg border px-3 py-2"
+                    />
+                    <select
+                      value={monedaCompra}
+                      onChange={(e) => setMonedaCompra(e.target.value as Moneda)}
+                      className="rounded-lg border px-3 py-2"
+                      aria-label="Moneda del precio de compra"
+                    >
+                      {MONEDA_OPCIONES.map((opcion) => (
+                        <option key={opcion.value} value={opcion.value}>
+                          {opcion.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <textarea
                   value={editDescripcion}
                   onChange={(e) => setEditDescripcion(e.target.value)}
@@ -490,7 +521,7 @@ export default function MaquinaDetailPage() {
                 </p>
                 <p>
                   <span className="text-[#6c757d]">Precio de compra:</span>{' '}
-                  {maquina.precioCompraUsd ? `$${maquina.precioCompraUsd} USD` : '—'}
+                  {formatoPrecioCompra(maquina.precioCompraUsd, maquina.monedaCompra)}
                 </p>
                 {acordada && (
                   <p className="md:col-span-2 whitespace-pre-wrap">
@@ -518,6 +549,15 @@ export default function MaquinaDetailPage() {
               onDelete={eliminarFoto}
             />
 
+            {estado !== EstadoMaquina.VENDIDA && (
+              <ImagePicker
+                label="Agregar fotos de la máquina"
+                disabled={uploading}
+                onUpload={(files) => uploadPhotos(EtapaImagen.EMBARQUE, files)}
+                uploading={uploading}
+              />
+            )}
+
             {maquina.pedidoReserva && (
               <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 text-sm">
                 <p className="font-medium">Reservada para: {maquina.pedidoReserva.clienteNombre}</p>
@@ -533,12 +573,6 @@ export default function MaquinaDetailPage() {
                   maquinaId={maquina.id}
                   audioUrl={maquina.notaAudioUrl}
                   onUploaded={() => load()}
-                />
-                <ImagePicker
-                  label="Agregar fotos de embarque"
-                  disabled={uploading}
-                  onUpload={(files) => uploadPhotos(EtapaImagen.EMBARQUE, files)}
-                  uploading={uploading}
                 />
                 <form
                   onSubmit={handleTransito}
@@ -707,6 +741,7 @@ export default function MaquinaDetailPage() {
             {estado === EstadoMaquina.LISTA_PARA_VENTA && (
               <PreciosListaVentaPanel
                 precioCompraUsd={maquina.precioCompraUsd}
+                monedaCompra={maquina.monedaCompra}
                 precioVentaUsd={maquina.precioVentaUsd}
                 maquinaNombre={maquina.nombre}
                 onSave={savePrecio}

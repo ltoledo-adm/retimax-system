@@ -40,7 +40,7 @@ export const AREA_LABELS: Record<AreaIntervencion, string> = {
 };
 
 export const ETAPA_LABELS: Record<string, string> = {
-  EMBARQUE: 'Embarque',
+  EMBARQUE: 'Fotos de la máquina',
   LLEGADA: 'Llegada (contenedor)',
   OTRA: 'Otras',
 };

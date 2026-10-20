@@ -43,6 +43,12 @@ export enum EtapaImagen {
   OTRA = 'OTRA',
 }
 
+export enum Moneda {
+  USD = 'USD',
+  EUR = 'EUR',
+  BOB = 'BOB',
+}
+
 export enum TipoIntervencion {
   DIAGNOSTICO_INICIAL = 'DIAGNOSTICO_INICIAL',
   TRABAJO_REALIZADO = 'TRABAJO_REALIZADO',
@@ -209,6 +215,7 @@ export interface MaquinaDto {
   empleadoDiagnosticoId?: string | null;
   empleadoDiag?: { id: string; nombreCompleto: string; especialidad: string } | null;
   precioCompraUsd?: string | null;
+  monedaCompra?: Moneda;
   precioVentaUsd?: string | null;
   tipoCambioUsado?: string | null;
   precioVentaBob?: string | null;

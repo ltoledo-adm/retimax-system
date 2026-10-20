@@ -114,14 +114,23 @@ export class MaquinasService {
     }));
   }
 
+  /** undefined = no cambiar; null = dejar vacío; número = guardar. */
+  private precioCompraDe(valor?: string | null): Prisma.Decimal | null | undefined {
+    if (valor === undefined) return undefined;
+    const texto = valor?.trim() ?? '';
+    if (!texto) return null;
+    const monto = Number(texto);
+    if (!Number.isFinite(monto) || monto <= 0) {
+      throw new BadRequestException('El precio de compra debe ser mayor a 0');
+    }
+    return new Prisma.Decimal(texto);
+  }
+
   async create(dto: CreateMaquinaDto, user: Usuario) {
     const proveedor = await this.prisma.proveedor.findUnique({ where: { id: dto.proveedorId } });
     if (!proveedor) throw new BadRequestException('Proveedor no encontrado');
 
-    const precioCompra = Number(dto.precioCompraUsd);
-    if (!Number.isFinite(precioCompra) || precioCompra <= 0) {
-      throw new BadRequestException('El precio de compra debe ser mayor a 0');
-    }
+    const precioCompra = this.precioCompraDe(dto.precioCompraUsd);
 
     const maquina = await this.prisma.$transaction(async (tx) => {
       const created = await tx.maquina.create({
@@ -134,7 +143,8 @@ export class MaquinasService {
           proveedorId: dto.proveedorId,
           descripcionLlegada: dto.descripcionLlegada,
           descripcionAcordada: dto.descripcionAcordada ?? dto.descripcionLlegada,
-          precioCompraUsd: new Prisma.Decimal(dto.precioCompraUsd),
+          precioCompraUsd: precioCompra ?? null,
+          monedaCompra: dto.monedaCompra ?? 'USD',
           fechaCompra: dto.fechaCompra ? new Date(dto.fechaCompra) : new Date(),
           fechaLlegadaEstimada: dto.fechaLlegadaEstimada
             ? new Date(dto.fechaLlegadaEstimada)
@@ -182,7 +192,8 @@ export class MaquinasService {
         proveedorId: dto.proveedorId,
         descripcionLlegada: dto.descripcionLlegada,
         fechaLlegadaReal: dto.fechaLlegadaReal ? new Date(dto.fechaLlegadaReal) : undefined,
-        precioCompraUsd: dto.precioCompraUsd ? new Prisma.Decimal(dto.precioCompraUsd) : undefined,
+        precioCompraUsd: this.precioCompraDe(dto.precioCompraUsd),
+        monedaCompra: dto.monedaCompra,
         precioVentaUsd: dto.precioVentaUsd ? new Prisma.Decimal(dto.precioVentaUsd) : undefined,
         tipoCambioUsado: dto.tipoCambioUsado ? new Prisma.Decimal(dto.tipoCambioUsado) : undefined,
         precioVentaBob: dto.precioVentaBob ? new Prisma.Decimal(dto.precioVentaBob) : undefined,

@@ -2,11 +2,13 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
+  ValidateIf,
   Max,
   Min,
   MinLength,
@@ -39,9 +41,15 @@ export class CreateMaquinaDto {
   @IsUUID()
   proveedorId!: string;
 
+  @IsOptional()
+  @ValidateIf((_, value) => value != null && value !== '')
   @IsString()
   @Matches(/^\d+(\.\d{1,2})?$/)
-  precioCompraUsd!: string;
+  precioCompraUsd?: string | null;
+
+  @IsOptional()
+  @IsIn(['USD', 'EUR', 'BOB'])
+  monedaCompra?: 'USD' | 'EUR' | 'BOB';
 
   @IsOptional()
   @IsString()
@@ -97,9 +105,14 @@ export class UpdateMaquinaDto {
   fechaLlegadaReal?: string;
 
   @IsOptional()
+  @ValidateIf((_, value) => value != null && value !== '')
   @IsString()
   @Matches(/^\d+(\.\d{1,2})?$/)
-  precioCompraUsd?: string;
+  precioCompraUsd?: string | null;
+
+  @IsOptional()
+  @IsIn(['USD', 'EUR', 'BOB'])
+  monedaCompra?: 'USD' | 'EUR' | 'BOB';
 
   @IsOptional()
   @IsString()

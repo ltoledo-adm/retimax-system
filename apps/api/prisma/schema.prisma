@@ -37,6 +37,12 @@ enum EtapaImagen {
   OTRA
 }
 
+enum Moneda {
+  USD
+  EUR
+  BOB
+}
+
 enum TipoIntervencion {
   DIAGNOSTICO_INICIAL
   TRABAJO_REALIZADO
@@ -169,6 +175,7 @@ model Maquina {
   empleadoDiagnosticoId String?
   empleadoDiag          Empleado?    @relation("DiagnosticoAsignado", fields: [empleadoDiagnosticoId], references: [id])
   precioCompraUsd       Decimal?      @db.Decimal(10, 2)
+  monedaCompra          Moneda        @default(USD)
   precioVentaUsd       Decimal?      @db.Decimal(10, 2)
   tipoCambioUsado      Decimal?      @db.Decimal(10, 4)
   precioVentaBob       Decimal?      @db.Decimal(10, 2)

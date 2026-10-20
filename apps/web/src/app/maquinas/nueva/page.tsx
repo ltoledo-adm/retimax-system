@@ -2,17 +2,19 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { EtapaImagen, ProveedorDto } from '@retimax/shared-types';
+import { EtapaImagen, Moneda, ProveedorDto } from '@retimax/shared-types';
 import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
 import { ImagePicker } from '@/components/ImagePicker';
 import { apiFetch } from '@/lib/api';
+import { MONEDA_OPCIONES } from '@/lib/moneda';
 
 export default function NuevaMaquinaPage() {
   const router = useRouter();
   const [proveedores, setProveedores] = useState<ProveedorDto[]>([]);
   const [nombre, setNombre] = useState('');
   const [precioCompraUsd, setPrecioCompraUsd] = useState('');
+  const [monedaCompra, setMonedaCompra] = useState<Moneda>(Moneda.USD);
   const [tipo, setTipo] = useState('');
   const [marca, setMarca] = useState('');
   const [modelo, setModelo] = useState('');
@@ -48,7 +50,10 @@ export default function NuevaMaquinaPage() {
         method: 'POST',
         body: JSON.stringify({
           nombre: nombre.trim(),
-          precioCompraUsd: Number(precioCompraUsd).toFixed(2),
+          precioCompraUsd: precioCompraUsd.trim()
+            ? Number(precioCompraUsd).toFixed(2)
+            : undefined,
+          monedaCompra,
           tipo: tipo.trim() || undefined,
           marca: marca.trim() || undefined,
           modelo: modelo.trim() || undefined,
@@ -80,30 +85,44 @@ export default function NuevaMaquinaPage() {
           <h2 className="text-2xl font-bold mb-2">Compra de máquina</h2>
           <p className="text-[#6c757d] text-sm mb-6">Registra la compra con los datos de la máquina.</p>
           <form onSubmit={handleSubmit} className="rounded-xl bg-white border p-6 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Nombre *</label>
-                <input
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Escribe el nombre de la maquinaria"
-                  className="w-full rounded-lg border px-4 py-2"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Precio de compra USD *</label>
+            <div>
+              <label className="block text-sm font-medium mb-1">Nombre *</label>
+              <input
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                placeholder="Escribe el nombre de la maquinaria"
+                className="w-full rounded-lg border px-4 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Precio de compra</label>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_11rem] gap-2">
                 <input
                   type="number"
                   min="0.01"
                   step="0.01"
                   value={precioCompraUsd}
                   onChange={(e) => setPrecioCompraUsd(e.target.value)}
-                  placeholder="0.00"
+                  placeholder="Opcional, se puede agregar después"
                   className="w-full rounded-lg border px-4 py-2"
-                  required
                 />
+                <select
+                  value={monedaCompra}
+                  onChange={(e) => setMonedaCompra(e.target.value as Moneda)}
+                  className="rounded-lg border px-3 py-2"
+                  aria-label="Moneda del precio de compra"
+                >
+                  {MONEDA_OPCIONES.map((opcion) => (
+                    <option key={opcion.value} value={opcion.value}>
+                      {opcion.label}
+                    </option>
+                  ))}
+                </select>
               </div>
+              <p className="text-xs text-[#6c757d] mt-1">
+                Puede dejarlo vacío y completarlo al editar la máquina.
+              </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -185,7 +204,7 @@ export default function NuevaMaquinaPage() {
             </div>
             <div className="border-t pt-4">
               <ImagePicker
-                label="Fotos de embarque (máx. 10)"
+                label="Fotos de la máquina (opcional, se pueden agregar después)"
                 disabled={loading}
                 files={fotosEmbarque}
                 onChange={setFotosEmbarque}

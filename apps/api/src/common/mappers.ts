@@ -207,6 +207,7 @@ export function toMaquinaDto(
   empleadoDiagnostico?: string | null;
   empleadoDiagnosticoId?: string | null;
   precioCompraUsd?: Decimal | null;
+  monedaCompra?: 'USD' | 'EUR' | 'BOB' | null;
   precioVentaUsd: Decimal | null;
   tipoCambioUsado: Decimal | null;
   precioVentaBob: Decimal | null;
@@ -317,6 +318,7 @@ export function toMaquinaDto(
         }
       : null,
     precioCompraUsd: decimalToString(maquina.precioCompraUsd),
+    monedaCompra: maquina.monedaCompra ?? 'USD',
     precioVentaUsd: decimalToString(maquina.precioVentaUsd),
     tipoCambioUsado: decimalToString(maquina.tipoCambioUsado),
     precioVentaBob: decimalToString(maquina.precioVentaBob),

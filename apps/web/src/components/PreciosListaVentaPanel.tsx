@@ -2,23 +2,27 @@
 
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
+import { Moneda } from '@retimax/shared-types';
+import { formatoPrecioCompra, MONEDA_OPCIONES } from '@/lib/moneda';
 
 type Props = {
   precioCompraUsd?: string | null;
+  monedaCompra?: Moneda | null;
   precioVentaUsd?: string | null;
   maquinaNombre: string;
-  onSave: (compra: string, venta: string) => Promise<void>;
+  onSave: (compra: string, venta: string, moneda: Moneda) => Promise<void>;
 };
 
 export function PreciosListaVentaPanel({
   precioCompraUsd,
+  monedaCompra,
   precioVentaUsd,
   maquinaNombre,
   onSave,
 }: Props) {
-  const compraFijada = Boolean(precioCompraUsd);
   const [editando, setEditando] = useState(!precioVentaUsd);
   const [compra, setCompra] = useState(precioCompraUsd ?? '');
+  const [moneda, setMoneda] = useState<Moneda>(monedaCompra ?? Moneda.USD);
   const [venta, setVenta] = useState(precioVentaUsd ?? '');
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -27,11 +31,10 @@ export function PreciosListaVentaPanel({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!compra.trim() || !venta.trim()) return;
     setLoading(true);
     try {
-      const compraGuardar = compraFijada ? (precioCompraUsd ?? '') : compra;
-      if (!compraGuardar.trim() || !venta.trim()) return;
-      await onSave(compraGuardar, venta);
+      await onSave(compra.trim(), venta.trim(), moneda);
       setEditando(false);
       setShowModal(true);
     } finally {
@@ -43,21 +46,22 @@ export function PreciosListaVentaPanel({
     return (
       <>
         <div className="border-t pt-4 space-y-3">
-          <p className="text-sm font-medium">Precios registrados (USD)</p>
+          <p className="text-sm font-medium">Precios registrados</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <p>
               <span className="text-[#6c757d]">Compra:</span>{' '}
-              <strong>${precioCompraUsd ?? '—'}</strong>
+              <strong>{formatoPrecioCompra(precioCompraUsd, monedaCompra)}</strong>
             </p>
             <p>
               <span className="text-[#6c757d]">Venta:</span>{' '}
-              <strong>${precioVentaUsd ?? '—'}</strong>
+              <strong>{precioVentaUsd ? `$${precioVentaUsd} USD` : 'Pendiente'}</strong>
             </p>
           </div>
           <button
             type="button"
             onClick={() => {
               setCompra(precioCompraUsd ?? '');
+              setMoneda(monedaCompra ?? Moneda.USD);
               setVenta(precioVentaUsd ?? '');
               setEditando(true);
             }}
@@ -105,25 +109,39 @@ export function PreciosListaVentaPanel({
 
   return (
     <form onSubmit={handleSubmit} className="border-t pt-4 space-y-3">
-      <p className="text-sm font-medium">Precio de venta (USD)</p>
-      <p className="text-sm">
-        <span className="text-[#6c757d]">Precio de compra:</span>{' '}
-        <strong>{precioCompraUsd ? `$${precioCompraUsd}` : 'Pendiente'}</strong>
-      </p>
-      {!compraFijada && (
-        <div>
-          <label className="block text-xs text-[#6c757d] mb-1">Precio de compra USD *</label>
+      <p className="text-sm font-medium">Precios para la venta</p>
+      <div>
+        <label className="block text-xs text-[#6c757d] mb-1">Precio de compra *</label>
+        <div className="flex gap-2">
           <input
+            type="number"
+            min="0.01"
+            step="0.01"
             value={compra}
             onChange={(e) => setCompra(e.target.value)}
             className="w-full rounded-lg border px-3 py-2"
             required
           />
+          <select
+            value={moneda}
+            onChange={(e) => setMoneda(e.target.value as Moneda)}
+            className="rounded-lg border px-3 py-2"
+            aria-label="Moneda del precio de compra"
+          >
+            {MONEDA_OPCIONES.map((opcion) => (
+              <option key={opcion.value} value={opcion.value}>
+                {opcion.label}
+              </option>
+            ))}
+          </select>
         </div>
-      )}
+      </div>
       <div>
         <label className="block text-xs text-[#6c757d] mb-1">Precio de venta USD *</label>
         <input
+          type="number"
+          min="0.01"
+          step="0.01"
           value={venta}
           onChange={(e) => setVenta(e.target.value)}
           className="w-full rounded-lg border px-3 py-2"
