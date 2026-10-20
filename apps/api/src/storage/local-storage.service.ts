@@ -52,11 +52,8 @@ export class LocalStorageService implements StorageService {
     const fullPath = join(imagesDir, filename);
     const thumbPath = join(thumbsDir, thumbFilename);
 
-    const webpBuffer = await sharp(buffer).webp({ quality: 80 }).toBuffer();
-    const thumbBuffer = await sharp(buffer)
-      .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 80 })
-      .toBuffer();
+    const webpBuffer = await this.toOrientedWebp(buffer);
+    const thumbBuffer = await this.toOrientedWebp(buffer, { width: 400, height: 400 });
 
     await writeFile(fullPath, webpBuffer);
     await writeFile(thumbPath, thumbBuffer);
@@ -66,6 +63,18 @@ export class LocalStorageService implements StorageService {
       url: `/uploads/images/${filename}`,
       thumbnailUrl: `/uploads/thumbnails/${thumbFilename}`,
     };
+  }
+
+  /** Aplica la orientación del celular (EXIF) antes de guardar, para que la foto quede derecha. */
+  private toOrientedWebp(buffer: Buffer, resize?: { width: number; height: number }) {
+    let pipeline = sharp(buffer, { failOn: 'none' }).rotate();
+    if (resize) {
+      pipeline = pipeline.resize(resize.width, resize.height, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      });
+    }
+    return pipeline.webp({ quality: 80 }).toBuffer();
   }
 
   async saveReferenceImage(buffer: Buffer, _originalName: string): Promise<{ url: string; filename: string }> {
