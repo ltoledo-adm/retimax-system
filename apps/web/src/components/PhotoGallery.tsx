@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ImagenMaquinaDto } from '@retimax/shared-types';
 import { imageUrl } from '@/lib/api';
 import { ETAPA_LABELS } from '@/lib/labels';
@@ -39,18 +40,18 @@ function GalleryThumb({
 
   return (
     <div className="group relative aspect-square rounded-xl overflow-hidden border-2 border-gray-200 hover:border-[#f5c842] shadow-sm hover:shadow-md transition-all bg-gray-100">
-      <button type="button" onClick={onOpen} className="absolute inset-0 focus:outline-none" aria-label="Ver grande" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt={ETAPA_LABELS[etapa] ?? etapa}
-        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200"
+        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200 pointer-events-none"
         onError={() => {
           if (src !== fullSrc(img)) setSrc(fullSrc(img));
         }}
       />
+      <button type="button" onClick={onOpen} className="absolute inset-0 z-10 cursor-zoom-in focus:outline-none" aria-label="Ver grande" />
       {esPortada && (
-        <span className="absolute top-1 left-1 rounded bg-[#1a1a1a]/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
+        <span className="pointer-events-none absolute top-1 left-1 z-20 rounded bg-[#1a1a1a]/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
           Portada
         </span>
       )}
@@ -58,7 +59,7 @@ function GalleryThumb({
         <button
           type="button"
           onClick={() => void onDelete(img.id)}
-          className="absolute top-1 right-1 z-10 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-red-700"
+          className="absolute top-1 right-1 z-20 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-red-700"
         >
           Eliminar
         </button>
@@ -139,9 +140,9 @@ export function PhotoGallery({
         ))}
       </div>
 
-      {current && lightboxIndex !== null && (
+      {current && lightboxIndex !== null && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4"
           onClick={close}
           role="dialog"
           aria-modal="true"
@@ -209,7 +210,8 @@ export function PhotoGallery({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
