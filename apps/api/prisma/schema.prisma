@@ -78,6 +78,11 @@ enum EstadoAprobacion {
   RECHAZADO
 }
 
+enum TipoMarcaCalendario {
+  PAUSA
+  RETOMA
+}
+
 model Usuario {
   id           String   @id @default(uuid())
   nombre       String
@@ -97,6 +102,7 @@ model Usuario {
   historialEstados   HistorialEstado[]
   refreshTokens      RefreshToken[]
   avancesRegistrados AvanceDiario[]    @relation("AvanceRegistradoPor")
+  marcasCalendario   MarcaCalendario[]
 
   @@map("usuarios")
 }
@@ -117,6 +123,7 @@ model Empleado {
   intervencionesAsignadas   Intervencion[] @relation("EmpleadoAsignado")
   intervencionesFinalizadas Intervencion[] @relation("EmpleadoFinalizo")
   diagnosticosAsignados     Maquina[]      @relation("DiagnosticoAsignado")
+  maquinasTomadas           Maquina[]      @relation("MaquinaTomadaPor")
 
   @@map("empleados")
 }
@@ -177,6 +184,9 @@ model Maquina {
   precioCompraUsd       Decimal?      @db.Decimal(10, 2)
   monedaCompra          Moneda        @default(USD)
   precioVentaUsd       Decimal?      @db.Decimal(10, 2)
+  tomadaPorId           String?
+  tomadaPor             Empleado?     @relation("MaquinaTomadaPor", fields: [tomadaPorId], references: [id], onDelete: SetNull)
+  tomadaEn              DateTime?
   tipoCambioUsado      Decimal?      @db.Decimal(10, 4)
   precioVentaBob       Decimal?      @db.Decimal(10, 2)
   fechaCompra          DateTime?
@@ -228,6 +238,8 @@ model Intervencion {
   observaciones      String?
   fechaAsignacion    DateTime?
   fechaInicio        DateTime?
+  fechaFinEstimada   DateTime?
+  precioMantenimientoEstimado Decimal? @db.Decimal(10, 2)
   fechaFinalizacion  DateTime?
   fechaAprobacion    DateTime?
   aprobadoPorId      String?
@@ -240,6 +252,7 @@ model Intervencion {
   createdAt          DateTime           @default(now())
   imagenes           ImagenMaquina[]
   avances            AvanceDiario[]
+  marcasCalendario   MarcaCalendario[]
 
   @@map("intervenciones")
   @@index([maquinaId])
@@ -329,6 +342,7 @@ model AvanceDiario {
   intervencion    Intervencion @relation(fields: [intervencionId], references: [id], onDelete: Cascade)
   descripcion     String
   observaciones   String?
+  videoUrl        String?
   registradoEn    DateTime     @default(now())
   registradoPorId String
   registradoPor   Usuario      @relation("AvanceRegistradoPor", fields: [registradoPorId], references: [id])
@@ -336,6 +350,21 @@ model AvanceDiario {
   @@map("avances_diarios")
   @@index([intervencionId])
   @@index([registradoEn])
+}
+
+model MarcaCalendario {
+  id             String              @id @default(uuid())
+  intervencionId String
+  intervencion   Intervencion        @relation(fields: [intervencionId], references: [id], onDelete: Cascade)
+  tipo           TipoMarcaCalendario
+  fecha          DateTime
+  motivo         String
+  creadoPorId    String
+  creadoPor      Usuario             @relation(fields: [creadoPorId], references: [id])
+  createdAt      DateTime            @default(now())
+
+  @@map("marcas_calendario")
+  @@index([intervencionId])
 }
 
 model Herramienta {

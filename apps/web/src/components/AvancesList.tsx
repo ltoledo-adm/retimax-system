@@ -1,6 +1,7 @@
 'use client';
 
 import { AvanceDiarioDto } from '@retimax/shared-types';
+import { imageUrl } from '@/lib/api';
 import { formatDateTime } from '@/lib/dates';
 
 export function AvancesList({ avances }: { avances?: AvanceDiarioDto[] | null }) {
@@ -18,6 +19,14 @@ export function AvancesList({ avances }: { avances?: AvanceDiarioDto[] | null })
           <p className="mt-1">{a.descripcion}</p>
           {a.observaciones && (
             <p className="text-xs text-[#6c757d] mt-1">Observaciones: {a.observaciones}</p>
+          )}
+          {a.videoUrl && (
+            <video
+              controls
+              preload="metadata"
+              src={imageUrl(a.videoUrl)}
+              className="mt-2 w-full max-w-sm rounded-lg bg-black"
+            />
           )}
         </div>
       ))}

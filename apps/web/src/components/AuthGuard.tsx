@@ -36,7 +36,7 @@ export function AuthGuard({
     const user = getUser<{ rol: Rol }>();
     if (adminOnly && user?.rol !== Rol.ADMIN) {
       setStatus('denied');
-      router.replace('/mis-trabajos');
+      router.replace('/mis-maquinas');
       return;
     }
     if (empleadoOnly && user?.rol !== Rol.EMPLEADO) {

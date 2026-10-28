@@ -142,6 +142,11 @@ export default function MaquinasList() {
                         <div>
                           <h3 className="font-semibold">{maquinaNombrePrincipal(m)}</h3>
                           <p className="text-sm text-[#6c757d] mt-0.5">{maquinaDetalleLinea(m)}</p>
+                          {m.tomadaPor && (
+                            <p className="text-xs font-medium text-amber-800 mt-1">
+                              En curso: {m.tomadaPor.nombreCompleto}
+                            </p>
+                          )}
                         </div>
                         <span
                           className={`shrink-0 text-xs text-white px-2 py-1 rounded-full ${ESTADO_COLORS[m.estado]}`}
@@ -214,7 +219,12 @@ export default function MaquinasList() {
                             {ESTADO_LABELS[m.estado]}
                           </span>
                         </td>
-                        <td className="p-3">{m.precioVentaUsd ? `$${m.precioVentaUsd}` : '—'}</td>
+                        <td className="p-3">
+                          {m.precioVentaUsd ? `$${m.precioVentaUsd}` : '—'}
+                          {m.tomadaPor && (
+                            <p className="text-xs text-amber-800">En curso: {m.tomadaPor.nombreCompleto}</p>
+                          )}
+                        </td>
                         <td className="p-3 text-right">
                           <button
                             type="button"

@@ -18,6 +18,11 @@ export class ReportesController {
     return this.reportesService.getTrabajos();
   }
 
+  @Get('semana')
+  getSemana(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
+    return this.reportesService.resumenSemana(desde, hasta);
+  }
+
   @Get('herramientas')
   getHerramientas(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
     return this.reportesService.getHerramientas(desde, hasta);

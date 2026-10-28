@@ -102,8 +102,17 @@ export function toIntervencionDto(
     intervencionId: string;
     descripcion: string;
     observaciones: string | null;
+    videoUrl?: string | null;
     registradoEn: Date;
     registradoPor?: { nombre: string } | null;
+  }>;
+  fechaFinEstimada?: Date | null;
+  precioMantenimientoEstimado?: Decimal | null;
+  marcasCalendario?: Array<{
+    id: string;
+    tipo: string;
+    fecha: Date;
+    motivo: string;
   }>;
 },
   options?: { employeeView?: boolean },
@@ -119,7 +128,7 @@ export function toIntervencionDto(
           marca: i.maquina.marca,
           modelo: i.maquina.modelo,
           estado: i.maquina.estado,
-          proveedor: i.maquina.proveedor?.nombre,
+          proveedor: options?.employeeView ? undefined : i.maquina.proveedor?.nombre,
         }
       : undefined,
     tipo: i.tipo,
@@ -147,6 +156,8 @@ export function toIntervencionDto(
     observaciones: i.observaciones,
     fechaAsignacion: i.fechaAsignacion?.toISOString() ?? null,
     fechaInicio: i.fechaInicio?.toISOString() ?? null,
+    fechaFinEstimada: i.fechaFinEstimada?.toISOString() ?? null,
+    precioMantenimientoEstimado: decimalToString(i.precioMantenimientoEstimado),
     fechaFinalizacion: i.fechaFinalizacion?.toISOString() ?? null,
     fechaAprobacion: i.fechaAprobacion?.toISOString() ?? null,
     estadoAprobacion: i.estadoAprobacion,
@@ -155,6 +166,12 @@ export function toIntervencionDto(
     finalizadoPor: i.finalizadoPor
       ? { id: i.finalizadoPor.id, nombre: `${i.finalizadoPor.nombre} ${i.finalizadoPor.apellido}` }
       : null,
+    marcasCalendario: (i.marcasCalendario ?? []).map((m) => ({
+      id: m.id,
+      tipo: m.tipo,
+      fecha: m.fecha.toISOString(),
+      motivo: m.motivo,
+    })),
     avances: (i.avances ?? [])
       .slice()
       .sort((a, b) => a.registradoEn.getTime() - b.registradoEn.getTime())
@@ -163,6 +180,7 @@ export function toIntervencionDto(
         intervencionId: a.intervencionId,
         descripcion: a.descripcion,
         observaciones: a.observaciones,
+        videoUrl: a.videoUrl ?? null,
         registradoEn: a.registradoEn.toISOString(),
         registradoPorNombre: a.registradoPor?.nombre ?? '',
       })),
@@ -209,6 +227,7 @@ export function toMaquinaDto(
   precioCompraUsd?: Decimal | null;
   monedaCompra?: 'USD' | 'EUR' | 'BOB' | null;
   precioVentaUsd: Decimal | null;
+  tomadaPor?: { id: string; nombre: string; apellido: string } | null;
   tipoCambioUsado: Decimal | null;
   precioVentaBob: Decimal | null;
   fechaCompra: Date | null;
@@ -320,6 +339,12 @@ export function toMaquinaDto(
     precioCompraUsd: decimalToString(maquina.precioCompraUsd),
     monedaCompra: maquina.monedaCompra ?? 'USD',
     precioVentaUsd: decimalToString(maquina.precioVentaUsd),
+    tomadaPor: maquina.tomadaPor
+      ? {
+          id: maquina.tomadaPor.id,
+          nombreCompleto: `${maquina.tomadaPor.nombre} ${maquina.tomadaPor.apellido}`.trim(),
+        }
+      : null,
     tipoCambioUsado: decimalToString(maquina.tipoCambioUsado),
     precioVentaBob: decimalToString(maquina.precioVentaBob),
     fechaCompra: maquina.fechaCompra?.toISOString() ?? null,

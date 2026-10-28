@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { EstadoMaquina, EstadoPedido } from '@prisma/client';
+import { EstadoMaquina, EstadoPedido, TipoIntervencion } from '@prisma/client';
 import { decimalToString } from '../common/mappers';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -237,4 +237,118 @@ export class ReportesService {
       })),
     };
   }
+
+  async resumenSemana(desde?: string, hasta?: string) {
+    const rango = rangoSemana(desde, hasta);
+    const inicio = new Date(`${rango.desde}T00:00:00.000-04:00`);
+    const fin = new Date(`${rango.hasta}T23:59:59.999-04:00`);
+
+    const [enCurso, trabajos] = await Promise.all([
+      this.prisma.maquina.findMany({
+        where: { tomadaPorId: { not: null } },
+        include: { tomadaPor: true },
+        orderBy: { tomadaEn: 'desc' },
+      }),
+      this.prisma.intervencion.findMany({
+        where: {
+          tipo: TipoIntervencion.TRABAJO_REALIZADO,
+          responsableId: { not: null },
+          OR: [
+            { fechaInicio: { gte: inicio, lte: fin } },
+            { fechaFinalizacion: { gte: inicio, lte: fin } },
+            { avances: { some: { registradoEn: { gte: inicio, lte: fin } } } },
+            { marcasCalendario: { some: { fecha: { gte: inicio, lte: fin } } } },
+          ],
+        },
+        include: {
+          maquina: { select: { id: true, nombre: true } },
+          responsable: true,
+          marcasCalendario: { orderBy: { fecha: 'asc' } },
+          avances: { where: { registradoEn: { gte: inicio, lte: fin } } },
+        },
+      }),
+    ]);
+
+    const grupos = new Map<
+      string,
+      {
+        empleadoId: string;
+        nombre: string;
+        maquinas: Array<{
+          maquinaId: string;
+          nombre: string;
+          estado: string;
+          area: string;
+          fechaInicio: string | null;
+          fechaFinEstimada: string | null;
+          fechaFinalizacion: string | null;
+          precioMantenimientoEstimado: string | null;
+          marcas: Array<{ id: string; tipo: string; fecha: string; motivo: string }>;
+          avances: number;
+        }>;
+      }
+    >();
+
+    for (const trabajo of trabajos) {
+      if (!trabajo.responsable) continue;
+      const nombre = `${trabajo.responsable.nombre} ${trabajo.responsable.apellido}`.trim();
+      const grupo = grupos.get(trabajo.responsable.id) ?? {
+        empleadoId: trabajo.responsable.id,
+        nombre,
+        maquinas: [],
+      };
+      grupo.maquinas.push({
+        maquinaId: trabajo.maquinaId,
+        nombre: trabajo.maquina.nombre,
+        estado: trabajo.estadoIntervencion,
+        area: trabajo.area,
+        fechaInicio: trabajo.fechaInicio?.toISOString() ?? null,
+        fechaFinEstimada: trabajo.fechaFinEstimada?.toISOString() ?? null,
+        fechaFinalizacion: trabajo.fechaFinalizacion?.toISOString() ?? null,
+        precioMantenimientoEstimado: decimalToString(trabajo.precioMantenimientoEstimado),
+        marcas: trabajo.marcasCalendario.map((m) => ({
+          id: m.id,
+          tipo: m.tipo,
+          fecha: m.fecha.toISOString(),
+          motivo: m.motivo,
+        })),
+        avances: trabajo.avances.length,
+      });
+      grupos.set(trabajo.responsable.id, grupo);
+    }
+
+    return {
+      desde: rango.desde,
+      hasta: rango.hasta,
+      enCurso: enCurso.map((m) => ({
+        maquinaId: m.id,
+        maquinaNombre: m.nombre,
+        empleadoNombre: m.tomadaPor
+          ? `${m.tomadaPor.nombre} ${m.tomadaPor.apellido}`.trim()
+          : '—',
+        desde: m.tomadaEn?.toISOString() ?? null,
+      })),
+      empleados: [...grupos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+    };
+  }
+}
+
+function rangoSemana(desde?: string, hasta?: string) {
+  if (desde && hasta && /^\d{4}-\d{2}-\d{2}$/.test(desde) && /^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+    return { desde, hasta };
+  }
+  const hoy = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/La_Paz',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  const utc = new Date(`${hoy}T12:00:00.000Z`);
+  const day = utc.getUTCDay();
+  const monday = new Date(utc);
+  monday.setUTCDate(utc.getUTCDate() - (day === 0 ? 6 : day - 1));
+  const sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return { desde: iso(monday), hasta: iso(sunday) };
 }

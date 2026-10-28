@@ -26,6 +26,11 @@ export enum EstadoAprobacion {
   RECHAZADO = 'RECHAZADO',
 }
 
+export enum TipoMarcaCalendario {
+  PAUSA = 'PAUSA',
+  RETOMA = 'RETOMA',
+}
+
 export enum EstadoMaquina {
   COMPRADA_ITALIA = 'COMPRADA_ITALIA',
   EN_TRANSITO = 'EN_TRANSITO',
@@ -158,6 +163,8 @@ export interface IntervencionDto {
   observaciones?: string | null;
   fechaAsignacion?: string | null;
   fechaInicio?: string | null;
+  fechaFinEstimada?: string | null;
+  precioMantenimientoEstimado?: string | null;
   fechaFinalizacion?: string | null;
   fechaAprobacion?: string | null;
   estadoAprobacion?: EstadoAprobacion;
@@ -165,7 +172,15 @@ export interface IntervencionDto {
   aprobadoPor?: UsuarioDto | null;
   finalizadoPor?: { id: string; nombre: string } | null;
   avances?: AvanceDiarioDto[];
+  marcasCalendario?: MarcaCalendarioDto[];
   createdAt: string;
+}
+
+export interface MarcaCalendarioDto {
+  id: string;
+  tipo: TipoMarcaCalendario;
+  fecha: string;
+  motivo: string;
 }
 
 export interface AvanceDiarioDto {
@@ -173,6 +188,7 @@ export interface AvanceDiarioDto {
   intervencionId: string;
   descripcion: string;
   observaciones?: string | null;
+  videoUrl?: string | null;
   registradoEn: string;
   registradoPorNombre: string;
 }
@@ -217,6 +233,7 @@ export interface MaquinaDto {
   precioCompraUsd?: string | null;
   monedaCompra?: Moneda;
   precioVentaUsd?: string | null;
+  tomadaPor?: { id: string; nombreCompleto: string } | null;
   tipoCambioUsado?: string | null;
   precioVentaBob?: string | null;
   fechaCompra?: string | null;

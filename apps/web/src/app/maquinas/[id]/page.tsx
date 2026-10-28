@@ -23,7 +23,7 @@ import { PreciosListaVentaPanel } from '@/components/PreciosListaVentaPanel';
 import { PhotoGallery } from '@/components/PhotoGallery';
 import { ImagePicker } from '@/components/ImagePicker';
 import { apiFetch } from '@/lib/api';
-import { formatDateTime } from '@/lib/dates';
+import { formatFecha, formatDateTime } from '@/lib/dates';
 import { maquinaDetalleLinea, maquinaNombrePrincipal } from '@/lib/maquina-display';
 import {
   AREA_LABELS,
@@ -68,6 +68,7 @@ export default function MaquinaDetailPage() {
   const [fotosLlegada, setFotosLlegada] = useState<File[]>([]);
 
   const [precioCompraUsd, setPrecioCompraUsd] = useState('');
+  const [precioVentaUsd, setPrecioVentaUsd] = useState('');
   const [monedaCompra, setMonedaCompra] = useState<Moneda>(Moneda.USD);
 
   function syncForm(data: MaquinaDto) {
@@ -85,6 +86,7 @@ export default function MaquinaDetailPage() {
       data.fechaLlegadaReal?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
     );
     setPrecioCompraUsd(data.precioCompraUsd ?? '');
+    setPrecioVentaUsd(data.precioVentaUsd ?? '');
     setMonedaCompra(data.monedaCompra ?? Moneda.USD);
   }
 
@@ -316,6 +318,7 @@ export default function MaquinaDetailPage() {
           proveedorId: editProveedorId,
           descripcionLlegada: editDescripcion,
           precioCompraUsd: precioCompraUsd.trim() ? Number(precioCompraUsd).toFixed(2) : null,
+          precioVentaUsd: precioVentaUsd.trim() ? Number(precioVentaUsd).toFixed(2) : null,
           monedaCompra,
         }),
       });
@@ -323,6 +326,27 @@ export default function MaquinaDetailPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar cambios');
+    }
+  }
+
+  async function liberarMaquina() {
+    if (!maquina?.tomadaPor) return;
+    if (
+      !confirm(
+        `¿Liberar la máquina? ${maquina.tomadaPor.nombreCompleto} deja de tenerla en curso. El trabajo ya anotado se conserva.`,
+      )
+    ) {
+      return;
+    }
+    setActionLoading(true);
+    setError('');
+    try {
+      await apiFetch(`/maquinas/${params.id}/liberar`, { method: 'PATCH' });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo liberar la máquina');
+    } finally {
+      setActionLoading(false);
     }
   }
 
@@ -396,6 +420,11 @@ export default function MaquinaDetailPage() {
               <div>
                 <h2 className="text-2xl font-bold">{maquinaNombrePrincipal(maquina)}</h2>
                 <p className="text-lg text-[#6c757d]">{maquinaDetalleLinea(maquina)}</p>
+                {maquina.tomadaPor && (
+                  <p className="text-sm font-medium text-amber-800 mt-1">
+                    En curso: {maquina.tomadaPor.nombreCompleto}
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span
@@ -403,6 +432,16 @@ export default function MaquinaDetailPage() {
                 >
                   {ESTADO_LABELS[estado]}
                 </span>
+                {maquina.tomadaPor && (
+                  <button
+                    type="button"
+                    onClick={liberarMaquina}
+                    disabled={actionLoading}
+                    className="text-sm rounded-lg border border-amber-300 px-3 py-1 hover:bg-amber-50 disabled:opacity-50"
+                  >
+                    Liberar máquina
+                  </button>
+                )}
                 {estado !== EstadoMaquina.VENDIDA && (
                   <button
                     type="button"
@@ -497,6 +536,18 @@ export default function MaquinaDetailPage() {
                     </select>
                   </div>
                 </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-[#6c757d] mb-1">Precio de venta USD</label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={precioVentaUsd}
+                    onChange={(e) => setPrecioVentaUsd(e.target.value)}
+                    placeholder="Opcional, puede ser estimado"
+                    className="w-full rounded-lg border px-3 py-2"
+                  />
+                </div>
                 <textarea
                   value={editDescripcion}
                   onChange={(e) => setEditDescripcion(e.target.value)}
@@ -522,6 +573,10 @@ export default function MaquinaDetailPage() {
                 <p>
                   <span className="text-[#6c757d]">Precio de compra:</span>{' '}
                   {formatoPrecioCompra(maquina.precioCompraUsd, maquina.monedaCompra)}
+                </p>
+                <p>
+                  <span className="text-[#6c757d]">Precio de venta:</span>{' '}
+                  {maquina.precioVentaUsd ? `$${maquina.precioVentaUsd} USD` : 'Pendiente'}
                 </p>
                 {acordada && (
                   <p className="md:col-span-2 whitespace-pre-wrap">
@@ -796,11 +851,26 @@ export default function MaquinaDetailPage() {
                       {(i.fechaAsignacion || i.fechaInicio || i.fechaFinalizacion) && (
                         <p className="text-xs text-[#6c757d] mt-1">
                           {i.fechaAsignacion && <>Asignado: {formatDateTime(i.fechaAsignacion)}</>}
-                          {i.fechaInicio && <> · Inicio: {formatDateTime(i.fechaInicio)}</>}
+                          {i.fechaInicio && <> · Inicio: {formatFecha(i.fechaInicio)}</>}
+                          {i.fechaFinEstimada && <> · Fin estimado: {formatFecha(i.fechaFinEstimada)}</>}
                           {i.fechaFinalizacion && (
-                            <> · Fin: {formatDateTime(i.fechaFinalizacion)}</>
+                            <> · Fin: {formatFecha(i.fechaFinalizacion)}</>
                           )}
                         </p>
+                      )}
+                      {i.precioMantenimientoEstimado && (
+                        <p className="text-xs mt-1">
+                          Precio estimado del mantenimiento: ${i.precioMantenimientoEstimado} USD
+                        </p>
+                      )}
+                      {!!i.marcasCalendario?.length && (
+                        <div className="mt-1 space-y-1">
+                          {i.marcasCalendario.map((marca) => (
+                            <p key={marca.id} className="text-xs text-[#6c757d]">
+                              {formatFecha(marca.fecha)} · {marca.tipo === 'PAUSA' ? 'Pausa' : 'Retoma'}: {marca.motivo}
+                            </p>
+                          ))}
+                        </div>
                       )}
                       {i.detalleTrabajo && (
                         <p className="mt-1 bg-gray-50 p-2 rounded text-xs">{i.detalleTrabajo}</p>

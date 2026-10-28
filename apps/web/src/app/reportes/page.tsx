@@ -10,6 +10,7 @@ import {
 import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
 import { HerramientasReporte } from '@/components/HerramientasReporte';
+import { ResumenSemana } from '@/components/ResumenSemana';
 import { PrintReport } from '@/components/PrintReport';
 import { apiFetch, imageUrl } from '@/lib/api';
 import { formatDateTime } from '@/lib/dates';
@@ -101,6 +102,8 @@ export default function ReportesPage() {
               Resumen del inventario, ventas, clientes, proveedores, trabajos y herramientas
             </p>
           </div>
+
+          <ResumenSemana />
 
           <div className="rounded-xl bg-white border p-5">
             <div className="flex justify-between items-center mb-3">

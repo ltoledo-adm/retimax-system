@@ -50,6 +50,11 @@ export class MaquinasController {
     return this.maquinasService.create(dto, user);
   }
 
+  @Patch(':id/liberar')
+  liberar(@Param('id') id: string) {
+    return this.maquinasService.liberar(id);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateMaquinaDto) {
     return this.maquinasService.update(id, dto);

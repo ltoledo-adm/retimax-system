@@ -14,6 +14,7 @@ export default function NuevaMaquinaPage() {
   const [proveedores, setProveedores] = useState<ProveedorDto[]>([]);
   const [nombre, setNombre] = useState('');
   const [precioCompraUsd, setPrecioCompraUsd] = useState('');
+  const [precioVentaUsd, setPrecioVentaUsd] = useState('');
   const [monedaCompra, setMonedaCompra] = useState<Moneda>(Moneda.USD);
   const [tipo, setTipo] = useState('');
   const [marca, setMarca] = useState('');
@@ -54,6 +55,7 @@ export default function NuevaMaquinaPage() {
             ? Number(precioCompraUsd).toFixed(2)
             : undefined,
           monedaCompra,
+          precioVentaUsd: precioVentaUsd.trim() ? Number(precioVentaUsd).toFixed(2) : undefined,
           tipo: tipo.trim() || undefined,
           marca: marca.trim() || undefined,
           modelo: modelo.trim() || undefined,
@@ -122,6 +124,21 @@ export default function NuevaMaquinaPage() {
               </div>
               <p className="text-xs text-[#6c757d] mt-1">
                 Puede dejarlo vacío y completarlo al editar la máquina.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Precio de venta USD</label>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={precioVentaUsd}
+                onChange={(e) => setPrecioVentaUsd(e.target.value)}
+                placeholder="Opcional. Puede ser estimado"
+                className="w-full rounded-lg border px-4 py-2"
+              />
+              <p className="text-xs text-[#6c757d] mt-1">
+                Si ya sabe a cuánto se venderá, cárguelo ahora. No hace falta esperar a que esté lista para la venta.
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

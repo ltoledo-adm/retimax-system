@@ -42,6 +42,7 @@ export class MaquinasService {
   private includeDetail() {
     return {
       proveedor: true,
+      tomadaPor: true,
       creadoPor: true,
       empleadoDiag: true,
       imagenes: { orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }] },
@@ -56,6 +57,7 @@ export class MaquinasService {
             orderBy: { registradoEn: 'asc' as const },
             include: { registradoPor: { select: { id: true, nombre: true } } },
           },
+          marcasCalendario: { orderBy: { fecha: 'asc' as const } },
         },
       },
       historialEstados: {
@@ -75,6 +77,7 @@ export class MaquinasService {
       where: estado ? { estado } : undefined,
       include: {
         proveedor: true,
+        tomadaPor: true,
         imagenes: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 1 },
       },
       orderBy: { updatedAt: 'desc' },
@@ -145,6 +148,7 @@ export class MaquinasService {
           descripcionAcordada: dto.descripcionAcordada ?? dto.descripcionLlegada,
           precioCompraUsd: precioCompra ?? null,
           monedaCompra: dto.monedaCompra ?? 'USD',
+          precioVentaUsd: dto.precioVentaUsd ? new Prisma.Decimal(dto.precioVentaUsd) : null,
           fechaCompra: dto.fechaCompra ? new Date(dto.fechaCompra) : new Date(),
           fechaLlegadaEstimada: dto.fechaLlegadaEstimada
             ? new Date(dto.fechaLlegadaEstimada)
@@ -201,6 +205,15 @@ export class MaquinasService {
       include: this.includeDetail(),
     });
     return toMaquinaDto(updated);
+  }
+
+  async liberar(id: string) {
+    await this.ensureExists(id);
+    await this.prisma.maquina.update({
+      where: { id },
+      data: { tomadaPorId: null, tomadaEn: null },
+    });
+    return this.findOne(id);
   }
 
   async remove(id: string) {

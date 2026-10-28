@@ -20,7 +20,7 @@ export default function LoginPage() {
     try {
       await login(username, password);
       const user = getUser<{ rol: Rol }>();
-      router.push(user?.rol === Rol.EMPLEADO ? '/mis-trabajos' : '/dashboard');
+      router.push(user?.rol === Rol.EMPLEADO ? '/mis-maquinas' : '/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión');
     } finally {

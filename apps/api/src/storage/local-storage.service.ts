@@ -94,6 +94,26 @@ export class LocalStorageService implements StorageService {
     return { url: `/uploads/audio/${filename}`, filename };
   }
 
+  async saveVideo(buffer: Buffer, originalName: string): Promise<{ url: string; filename: string }> {
+    if (buffer.length > 8 * 1024 * 1024) {
+      throw new Error('El video supera 8 MB. Grabe unos 10 segundos.');
+    }
+    const lower = originalName.toLowerCase();
+    const ext = lower.endsWith('.webm')
+      ? 'webm'
+      : lower.endsWith('.mov')
+        ? 'mov'
+        : lower.endsWith('.3gp')
+          ? '3gp'
+          : 'mp4';
+    const id = uuidv4();
+    const filename = `${id}.${ext}`;
+    const videoDir = join(this.uploadDir, 'videos');
+    await this.ensureDir(videoDir);
+    await writeFile(join(videoDir, filename), buffer);
+    return { url: `/uploads/videos/${filename}`, filename };
+  }
+
   async deleteFile(relativePath: string): Promise<void> {
     const fullPath = join(this.uploadDir, relativePath.replace(/^\/uploads\//, ''));
     try {

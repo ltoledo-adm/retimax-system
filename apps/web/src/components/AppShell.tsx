@@ -18,7 +18,10 @@ const adminNav = [
   { href: '/proveedores', label: 'Proveedores' },
 ];
 
-const empleadoNav = [{ href: '/mis-trabajos', label: 'Mis trabajos' }];
+const empleadoNav = [
+  { href: '/mis-maquinas', label: 'Máquinas' },
+  { href: '/mis-trabajos', label: 'Mis trabajos' },
+];
 
 type AppUser = { nombre: string; email: string; rol: Rol };
 

@@ -52,6 +52,12 @@ export class CreateMaquinaDto {
   monedaCompra?: 'USD' | 'EUR' | 'BOB';
 
   @IsOptional()
+  @ValidateIf((_, value) => value != null && value !== '')
+  @IsString()
+  @Matches(/^\d+(\.\d{1,2})?$/)
+  precioVentaUsd?: string | null;
+
+  @IsOptional()
   @IsString()
   descripcionLlegada?: string;
 

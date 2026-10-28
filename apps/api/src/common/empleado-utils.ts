@@ -1,5 +1,18 @@
 import { AreaIntervencion, Especialidad } from '@prisma/client';
 
+export function areaPrincipal(especialidad: Especialidad): AreaIntervencion {
+  switch (especialidad) {
+    case Especialidad.MECANICO:
+      return AreaIntervencion.MECANICA;
+    case Especialidad.ELECTRICO:
+      return AreaIntervencion.ELECTRICA;
+    case Especialidad.PINTOR:
+      return AreaIntervencion.PINTADO;
+    default:
+      return AreaIntervencion.MANTENIMIENTO_GENERAL;
+  }
+}
+
 export function areasForEspecialidad(especialidad: Especialidad): AreaIntervencion[] {
   switch (especialidad) {
     case Especialidad.MECANICO:
