@@ -44,6 +44,15 @@ async function refreshAccessToken(refreshToken: string) {
   return data.accessToken as string;
 }
 
+function errorDeRed(err: unknown): Error {
+  if (err instanceof Error && err.name === 'AbortError') {
+    return new Error(
+      'La subida tardó demasiado. Intente de nuevo. Lo que ya se había guardado sigue en el sistema.',
+    );
+  }
+  return new Error('No se pudo conectar con la API. Verifique que el servidor esté activo (pnpm dev:api).');
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const tokens = getTokens();
   const headers = new Headers(init.headers);
@@ -56,20 +65,30 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     headers.set('Authorization', `Bearer ${tokens.accessToken}`);
   }
 
+  const esSubida = init.body instanceof FormData;
+  const reloj = new AbortController();
+  const limite = esSubida ? setTimeout(() => reloj.abort(), 90_000) : null;
+
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { ...init, headers });
-  } catch {
-    throw new Error('No se pudo conectar con la API. Verifique que el servidor esté activo (pnpm dev:api).');
+    res = await fetch(`${API_URL}${path}`, { ...init, headers, signal: reloj.signal });
+  } catch (err) {
+    throw errorDeRed(err);
+  } finally {
+    if (limite) clearTimeout(limite);
   }
 
   if (res.status === 401 && tokens?.refreshToken) {
+    const nuevoReloj = new AbortController();
+    const nuevoLimite = esSubida ? setTimeout(() => nuevoReloj.abort(), 90_000) : null;
     const newAccess = await refreshAccessToken(tokens.refreshToken);
     headers.set('Authorization', `Bearer ${newAccess}`);
     try {
-      res = await fetch(`${API_URL}${path}`, { ...init, headers });
-    } catch {
-      throw new Error('No se pudo conectar con la API. Verifique que el servidor esté activo (pnpm dev:api).');
+      res = await fetch(`${API_URL}${path}`, { ...init, headers, signal: nuevoReloj.signal });
+    } catch (err) {
+      throw errorDeRed(err);
+    } finally {
+      if (nuevoLimite) clearTimeout(nuevoLimite);
     }
   }
 

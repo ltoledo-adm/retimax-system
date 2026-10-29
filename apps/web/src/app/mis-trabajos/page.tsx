@@ -13,20 +13,20 @@ export default function MisTrabajosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  async function load() {
-    setLoading(true);
+  async function load(inicial = false) {
+    if (inicial) setLoading(true);
     setError('');
     try {
       setTrabajos(await apiFetch<IntervencionDto[]>('/mis-trabajos'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar');
     } finally {
-      setLoading(false);
+      if (inicial) setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    void load(true);
   }, []);
 
   return (

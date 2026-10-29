@@ -13,6 +13,7 @@ type Props = {
   /** Subir directo al servidor */
   onUpload?: (files: File[]) => Promise<void>;
   uploading?: boolean;
+  hint?: string;
 };
 
 export function ImagePicker({
@@ -22,6 +23,7 @@ export function ImagePicker({
   onChange,
   onUpload,
   uploading,
+  hint = 'Se achican solas antes de subir, para que la pantalla no se quede cargando.',
 }: Props) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -129,7 +131,7 @@ export function ImagePicker({
         </div>
       )}
       <p className="text-xs text-[#6c757d]">
-        {files.length}/{MAX_FILES} — se suben al guardar o con el botón de abajo
+        {files.length}/{MAX_FILES}. {hint}
       </p>
       {error && <p className="text-red-600 text-sm">{error}</p>}
       {onUpload && files.length > 0 && (

@@ -24,7 +24,15 @@ import { toIntervencionDto } from '../common/mappers';
 import { PrismaService } from '../prisma/prisma.service';
 import { STORAGE_SERVICE, StorageService } from '../storage/storage.interface';
 
-const MAX_FOTOS_TRABAJO = 10;
+const MAX_FOTOS_POR_CARGA = 10;
+const MAX_FOTOS_TRABAJO = 30;
+
+const PUEDE_EDITAR_PRECIO = new Set<EstadoIntervencion>([
+  EstadoIntervencion.ASIGNADO,
+  EstadoIntervencion.EN_PROCESO,
+  EstadoIntervencion.RECHAZADO,
+  EstadoIntervencion.FINALIZADO,
+]);
 
 @Injectable()
 export class IntervencionesService {
@@ -255,6 +263,21 @@ export class IntervencionesService {
     return toIntervencionDto(updated, { employeeView: true });
   }
 
+  async actualizarPrecio(id: string, user: Usuario, valor?: string | null) {
+    const intervencion = await this.getForEmployee(id, user);
+    if (!PUEDE_EDITAR_PRECIO.has(intervencion.estadoIntervencion)) {
+      throw new BadRequestException(
+        'El precio ya no se puede cambiar. El administrador ya aprobó el trabajo.',
+      );
+    }
+    const updated = await this.prisma.intervencion.update({
+      where: { id: intervencion.id },
+      data: { precioMantenimientoEstimado: this.precioFlexible(valor) },
+      include: this.includeRelations(),
+    });
+    return toIntervencionDto(updated, { employeeView: true });
+  }
+
   async registrarAvance(
     id: string,
     user: Usuario,
@@ -359,7 +382,12 @@ export class IntervencionesService {
   async finalizar(
     id: string,
     user: Usuario,
-    body: { detalleTrabajo?: string; observaciones?: string; fechaFinalizacion?: string },
+    body: {
+      detalleTrabajo?: string;
+      observaciones?: string;
+      fechaFinalizacion?: string;
+      precioMantenimientoEstimado?: string;
+    },
   ) {
     const intervencion = await this.resolveTrabajoMantenimiento(await this.getForEmployee(id, user));
     if (
@@ -370,6 +398,11 @@ export class IntervencionesService {
       throw new BadRequestException('El trabajo debe estar en proceso para finalizar');
     }
 
+    const precio =
+      body.precioMantenimientoEstimado !== undefined
+        ? this.precioFlexible(body.precioMantenimientoEstimado)
+        : undefined;
+
     const updated = await this.prisma.intervencion.update({
       where: { id: intervencion.id },
       data: {
@@ -379,6 +412,7 @@ export class IntervencionesService {
         finalizadoPorId: user.empleadoId!,
         detalleTrabajo: body.detalleTrabajo ?? intervencion.detalleTrabajo,
         observaciones: body.observaciones,
+        ...(precio !== undefined ? { precioMantenimientoEstimado: precio } : {}),
       },
       include: this.includeRelations(),
     });
@@ -422,8 +456,8 @@ export class IntervencionesService {
       throw new BadRequestException('Solo puede subir fotos mientras el trabajo está activo');
     }
     if (!files?.length) throw new BadRequestException('Al menos una imagen es requerida');
-    if (files.length > MAX_FOTOS_TRABAJO) {
-      throw new BadRequestException(`Máximo ${MAX_FOTOS_TRABAJO} imágenes por carga`);
+    if (files.length > MAX_FOTOS_POR_CARGA) {
+      throw new BadRequestException(`Máximo ${MAX_FOTOS_POR_CARGA} imágenes por carga`);
     }
 
     const existentes = await this.prisma.imagenMaquina.count({
@@ -437,7 +471,14 @@ export class IntervencionesService {
 
     const results = [];
     for (const file of files) {
-      const stored = await this.storage.saveImage(file.buffer, file.originalname);
+      let stored: { url: string; thumbnailUrl: string };
+      try {
+        stored = await this.storage.saveImage(file.buffer, file.originalname);
+      } catch (err) {
+        throw new BadRequestException(
+          err instanceof Error ? err.message : 'No se pudo procesar la foto',
+        );
+      }
       const imagen = await this.prisma.imagenMaquina.create({
         data: {
           maquinaId: intervencion.maquinaId,
@@ -609,11 +650,18 @@ export class IntervencionesService {
   private precioEstimado(valor?: string | null) {
     const texto = valor?.trim() ?? '';
     if (!texto) return undefined;
+    return this.precioFlexible(texto) ?? undefined;
+  }
+
+  /** Vacío borra el monto. Un número válido queda guardado. */
+  private precioFlexible(valor?: string | null) {
+    const texto = (valor ?? '').trim().replace(',', '.');
+    if (!texto) return null;
     const monto = Number(texto);
     if (!Number.isFinite(monto) || monto <= 0) {
       throw new BadRequestException('El precio estimado debe ser mayor a 0');
     }
-    return new Prisma.Decimal(texto);
+    return new Prisma.Decimal(monto.toFixed(2));
   }
 
   private async ocupar(

@@ -160,6 +160,9 @@ export default function MiMaquinaPage() {
                   </div>
                   <label className="block text-sm">
                     Precio estimado del mantenimiento (USD, opcional)
+                    <span className="block text-xs text-[#6c757d] font-normal">
+                      Si todavía no lo sabe, déjelo vacío. Puede cambiarlo hasta que el administrador apruebe.
+                    </span>
                     <input
                       type="number"
                       min="0.01"

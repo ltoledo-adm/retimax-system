@@ -314,10 +314,6 @@ export class MaquinasService {
       throw new BadRequestException('Complete la recepción solo cuando esté en estado Recibida');
     }
 
-    if (files?.length) {
-      await this.uploadImagenes(id, { etapa: EtapaImagen.LLEGADA }, files);
-    }
-
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.historialEstado.create({
         data: {
@@ -353,6 +349,17 @@ export class MaquinasService {
 
       return m;
     });
+
+    if (files?.length) {
+      try {
+        await this.uploadImagenes(id, { etapa: EtapaImagen.LLEGADA }, files);
+      } catch (err) {
+        const detalle = err instanceof Error ? err.message : 'No se pudieron subir las fotos';
+        throw new BadRequestException(
+          `La recepción ya quedó guardada. Las fotos no se subieron: ${detalle}. Agréguelas desde la ficha de la máquina.`,
+        );
+      }
+    }
 
     return toMaquinaDto(updated);
   }
@@ -767,7 +774,14 @@ export class MaquinasService {
     const base = Date.now();
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const stored = await this.storage.saveImage(file.buffer, file.originalname);
+      let stored: { url: string; thumbnailUrl: string };
+      try {
+        stored = await this.storage.saveImage(file.buffer, file.originalname);
+      } catch (err) {
+        throw new BadRequestException(
+          err instanceof Error ? err.message : 'No se pudo procesar la foto',
+        );
+      }
       const imagen = await this.prisma.imagenMaquina.create({
         data: {
           maquinaId: id,

@@ -82,6 +82,16 @@ class FinalizarTrabajoDto {
   @IsOptional()
   @IsString()
   fechaFinalizacion?: string;
+
+  @IsOptional()
+  @IsString()
+  precioMantenimientoEstimado?: string;
+}
+
+class PrecioEstimadoDto {
+  @IsOptional()
+  @IsString()
+  precioMantenimientoEstimado?: string;
 }
 
 class RegistrarAvanceDto {
@@ -137,6 +147,16 @@ export class IntervencionesController {
     @Body() body: IniciarTrabajoDto,
   ) {
     return this.intervencionesService.iniciar(id, user, body);
+  }
+
+  @Patch('intervenciones/:id/precio')
+  @Roles(Rol.EMPLEADO)
+  precio(
+    @Param('id') id: string,
+    @CurrentUser() user: Usuario,
+    @Body() body: PrecioEstimadoDto,
+  ) {
+    return this.intervencionesService.actualizarPrecio(id, user, body.precioMantenimientoEstimado);
   }
 
   @Post('intervenciones/:id/calendario')

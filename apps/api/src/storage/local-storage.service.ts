@@ -8,8 +8,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { StoredImage, StorageService } from './storage.interface';
 import { resolveUploadDir } from './upload-path';
 
+sharp.concurrency(1);
+sharp.cache(false);
+
 const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_BYTES = 25 * 1024 * 1024;
+const FOTO_LADO_MAXIMO = 1920;
 export const MAX_IMAGENES_POR_ETAPA = 10;
 
 @Injectable()
@@ -52,8 +56,17 @@ export class LocalStorageService implements StorageService {
     const fullPath = join(imagesDir, filename);
     const thumbPath = join(thumbsDir, thumbFilename);
 
-    const webpBuffer = await this.toOrientedWebp(buffer);
-    const thumbBuffer = await this.toOrientedWebp(buffer, { width: 400, height: 400 });
+    let webpBuffer: Buffer;
+    let thumbBuffer: Buffer;
+    try {
+      webpBuffer = await this.toOrientedWebp(buffer);
+      thumbBuffer = await sharp(webpBuffer, { failOn: 'none' })
+        .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 75 })
+        .toBuffer();
+    } catch {
+      throw new Error('No se pudo procesar esta foto. Tómela de nuevo o elija un JPG más liviano.');
+    }
 
     await writeFile(fullPath, webpBuffer);
     await writeFile(thumbPath, thumbBuffer);
@@ -65,16 +78,17 @@ export class LocalStorageService implements StorageService {
     };
   }
 
-  /** Aplica la orientación del celular (EXIF) antes de guardar, para que la foto quede derecha. */
-  private toOrientedWebp(buffer: Buffer, resize?: { width: number; height: number }) {
-    let pipeline = sharp(buffer, { failOn: 'none' }).rotate();
-    if (resize) {
-      pipeline = pipeline.resize(resize.width, resize.height, {
-        fit: 'inside',
-        withoutEnlargement: true,
-      });
-    }
-    return pipeline.webp({ quality: 80 }).toBuffer();
+  /** Endereza la foto del celular y la deja como máximo en 1920 px, una sola vez. */
+  private toOrientedWebp(buffer: Buffer) {
+    return sharp(buffer, {
+      failOn: 'none',
+      limitInputPixels: 40_000_000,
+      sequentialRead: true,
+    })
+      .rotate()
+      .resize(FOTO_LADO_MAXIMO, FOTO_LADO_MAXIMO, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 78 })
+      .toBuffer();
   }
 
   async saveReferenceImage(buffer: Buffer, _originalName: string): Promise<{ url: string; filename: string }> {

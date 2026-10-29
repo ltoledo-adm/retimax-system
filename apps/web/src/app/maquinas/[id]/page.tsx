@@ -23,6 +23,7 @@ import { PreciosListaVentaPanel } from '@/components/PreciosListaVentaPanel';
 import { PhotoGallery } from '@/components/PhotoGallery';
 import { ImagePicker } from '@/components/ImagePicker';
 import { apiFetch } from '@/lib/api';
+import { prepararFotos } from '@/lib/preparar-foto';
 import { formatFecha, formatDateTime } from '@/lib/dates';
 import { maquinaDetalleLinea, maquinaNombrePrincipal } from '@/lib/maquina-display';
 import {
@@ -102,7 +103,7 @@ export default function MaquinaDetailPage() {
       setMaquina(data);
       setEmpleados(emps.filter((e) => e.activo));
       setProveedores(provs);
-      syncForm(data);
+      if (!silent) syncForm(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar máquina');
     } finally {
@@ -170,11 +171,12 @@ export default function MaquinaDetailPage() {
     setUploading(true);
     setError('');
     try {
+      const prepared = await prepararFotos(files);
       const form = new FormData();
-      files.forEach((f) => form.append('files', f));
+      prepared.forEach((f) => form.append('files', f));
       form.append('etapa', etapa);
       await apiFetch(`/maquinas/${params.id}/imagenes/lote`, { method: 'POST', body: form });
-      await load();
+      await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al subir fotos');
     } finally {
@@ -225,16 +227,19 @@ export default function MaquinaDetailPage() {
     setActionLoading(true);
     setError('');
     try {
+      const prepared = await prepararFotos(fotosLlegada);
       const form = new FormData();
       form.append('descripcionLlegada', recepcionDesc);
       if (fechaRecibida) form.append('fechaLlegadaReal', fechaRecibida);
-      fotosLlegada.forEach((f) => form.append('files', f));
+      prepared.forEach((f) => form.append('files', f));
       await apiFetch(`/maquinas/${params.id}/recepcion`, { method: 'POST', body: form });
       setFotosLlegada([]);
       setVolverAtras(false);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar recepción');
+      const msg = err instanceof Error ? err.message : 'Error al guardar recepción';
+      setError(msg);
+      if (msg.includes('ya quedó guardada')) await load();
     } finally {
       setActionLoading(false);
     }
@@ -445,7 +450,10 @@ export default function MaquinaDetailPage() {
                 {estado !== EstadoMaquina.VENDIDA && (
                   <button
                     type="button"
-                    onClick={() => setEditing(!editing)}
+                    onClick={() => {
+                      if (!editing) syncForm(maquina);
+                      setEditing(!editing);
+                    }}
                     className="text-sm rounded-lg border px-3 py-1 hover:bg-gray-50"
                   >
                     {editing ? 'Cancelar' : 'Editar'}
@@ -627,7 +635,7 @@ export default function MaquinaDetailPage() {
                 <AudioNoteRecorder
                   maquinaId={maquina.id}
                   audioUrl={maquina.notaAudioUrl}
-                  onUploaded={() => load()}
+                  onUploaded={() => load(true)}
                 />
                 <form
                   onSubmit={handleTransito}

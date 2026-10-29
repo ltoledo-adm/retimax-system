@@ -96,7 +96,12 @@ export class HerramientasService {
 
   async uploadFoto(id: string, file: Express.Multer.File) {
     await this.ensure(id);
-    const stored = await this.storage.saveImage(file.buffer, file.originalname);
+    let stored: { url: string; thumbnailUrl: string };
+    try {
+      stored = await this.storage.saveImage(file.buffer, file.originalname);
+    } catch (err) {
+      throw new BadRequestException(err instanceof Error ? err.message : 'No se pudo procesar la foto');
+    }
     const row = await this.prisma.herramienta.update({
       where: { id },
       data: { fotoUrl: stored.url, thumbnailUrl: stored.thumbnailUrl },

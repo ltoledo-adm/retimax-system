@@ -7,6 +7,7 @@ import { AppShell } from '@/components/AppShell';
 import { AuthGuard } from '@/components/AuthGuard';
 import { ImagePicker } from '@/components/ImagePicker';
 import { apiFetch } from '@/lib/api';
+import { prepararFotos } from '@/lib/preparar-foto';
 import { MONEDA_OPCIONES } from '@/lib/moneda';
 
 export default function NuevaMaquinaPage() {
@@ -46,6 +47,7 @@ export default function NuevaMaquinaPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    let idCreado = '';
     try {
       const maquina = await apiFetch<{ id: string }>('/maquinas', {
         method: 'POST',
@@ -64,16 +66,25 @@ export default function NuevaMaquinaPage() {
           descripcionAcordada: descripcion || undefined,
         }),
       });
+      idCreado = maquina.id;
 
       if (fotosEmbarque.length > 0) {
+        const prepared = await prepararFotos(fotosEmbarque);
         const form = new FormData();
-        fotosEmbarque.forEach((f) => form.append('files', f));
+        prepared.forEach((f) => form.append('files', f));
         form.append('etapa', EtapaImagen.EMBARQUE);
         await apiFetch(`/maquinas/${maquina.id}/imagenes/lote`, { method: 'POST', body: form });
       }
 
       router.push(`/maquinas/${maquina.id}`);
     } catch (err) {
+      if (idCreado) {
+        window.alert(
+          'La máquina ya quedó guardada. Las fotos no se subieron; puede agregarlas en la ficha.',
+        );
+        router.push(`/maquinas/${idCreado}`);
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Error al crear');
     } finally {
       setLoading(false);
