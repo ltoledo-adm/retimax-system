@@ -425,9 +425,12 @@ export default function MaquinaDetailPage() {
               <div>
                 <h2 className="text-2xl font-bold">{maquinaNombrePrincipal(maquina)}</h2>
                 <p className="text-lg text-[#6c757d]">{maquinaDetalleLinea(maquina)}</p>
-                {maquina.tomadaPor && (
+                {(maquina.revisoresEnCurso?.length || maquina.tomadaPor) && (
                   <p className="text-sm font-medium text-amber-800 mt-1">
-                    En curso: {maquina.tomadaPor.nombreCompleto}
+                    En curso:{' '}
+                    {maquina.revisoresEnCurso?.length
+                      ? maquina.revisoresEnCurso.map((r) => r.nombreCompleto).join(', ')
+                      : maquina.tomadaPor?.nombreCompleto}
                   </p>
                 )}
               </div>

@@ -120,11 +120,11 @@ export function ResumenSemana() {
       <div>
         <p className="text-sm font-medium mb-2">En curso ahora</p>
         {!data?.enCurso.length ? (
-          <p className="text-sm text-[#6c757d]">Nadie tiene una máquina tomada.</p>
+          <p className="text-sm text-[#6c757d]">Nadie tiene una revisión abierta.</p>
         ) : (
           <ul className="space-y-1 text-sm">
             {data.enCurso.map((item) => (
-              <li key={item.maquinaId}>
+              <li key={`${item.maquinaId}-${item.empleadoNombre}`}>
                 <Link href={`/maquinas/${item.maquinaId}`} className="font-medium hover:underline">
                   {item.maquinaNombre}
                 </Link>

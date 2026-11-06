@@ -11,11 +11,12 @@ import { ESTADO_COLORS, ESTADO_LABELS } from '@/lib/labels';
 type Ficha = {
   id: string;
   nombre: string;
+  marca: string;
+  modelo: string;
   estado: EstadoMaquina;
   thumbnailUrl?: string | null;
-  tomadaPor: { id: string; nombre: string } | null;
+  revisores: { id: string; nombre: string }[];
   esMia: boolean;
-  puedoTomar: boolean;
 };
 
 export default function MisMaquinasPage() {
@@ -51,7 +52,7 @@ export default function MisMaquinasPage() {
           <div>
             <h2 className="text-2xl font-bold">Máquinas</h2>
             <p className="text-sm text-[#6c757d]">
-              Busque la máquina y empiece. Si otro compañero ya la tomó, no podrá abrirla para trabajar.
+              Busque por marca o modelo y deslice la lista. Si un compañero ya la está revisando, usted también puede hacer la suya.
             </p>
           </div>
           <form
@@ -64,7 +65,7 @@ export default function MisMaquinasPage() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar por nombre"
+              placeholder="Buscar por marca, modelo o nombre"
               className="flex-1 rounded-lg border px-3 py-2"
             />
             <button type="submit" className="rounded-lg bg-[#1a1a1a] text-white px-4 py-2 text-sm font-semibold">
@@ -75,15 +76,15 @@ export default function MisMaquinasPage() {
           {loading ? (
             <p className="text-[#6c757d]">Cargando...</p>
           ) : filas.length === 0 ? (
-            <p className="text-[#6c757d]">No hay máquinas con ese nombre.</p>
+            <p className="text-[#6c757d]">No hay máquinas con esa marca, modelo o nombre.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {filas.map((m) => (
                 <button
                   key={m.id}
                   type="button"
                   onClick={() => router.push(`/mis-maquinas/${m.id}`)}
-                  className="w-full text-left rounded-xl bg-white border p-3 flex items-center gap-3 hover:border-[#f5c842]"
+                  className="w-full text-left rounded-xl bg-white border p-4 flex items-center gap-3 hover:border-[#f5c842]"
                 >
                   {m.thumbnailUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -93,12 +94,13 @@ export default function MisMaquinasPage() {
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="block font-semibold truncate">{m.nombre}</span>
+                    <span className="block text-sm text-[#1a1a1a] mt-0.5">
+                      {[m.marca, m.modelo].filter((parte) => parte?.trim()).join(' · ') || 'Sin marca ni modelo'}
+                    </span>
                     <span className="block text-xs text-[#6c757d] mt-0.5">
-                      {m.esMia
-                        ? 'La está trabajando usted'
-                        : m.tomadaPor
-                          ? `En curso: ${m.tomadaPor.nombre}`
-                          : 'Disponible'}
+                      {m.revisores.length
+                        ? `${m.esMia ? 'Su revisión está abierta. ' : ''}Revisan: ${m.revisores.map((r) => r.nombre).join(', ')}`
+                        : 'Disponible'}
                     </span>
                   </span>
                   <span className={`shrink-0 text-xs text-white px-2 py-1 rounded-full ${ESTADO_COLORS[m.estado]}`}>

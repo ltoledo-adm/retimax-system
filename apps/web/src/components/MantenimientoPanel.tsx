@@ -153,8 +153,7 @@ export function MantenimientoPanel({
   return (
     <div className="space-y-4 border-t pt-4">
       <p className="text-sm text-[#6c757d]">
-        Supervise los trabajos asignados en diagnóstico: avance del técnico, fotos de respaldo y
-        aprobación cuando envíen el trabajo.
+        Cada trabajador envía su propia revisión, con sus avances del día. Apruebe el trabajo de cada uno.
       </p>
 
       {pendientes.length > 0 && (

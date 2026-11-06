@@ -83,7 +83,7 @@ export default function MaquinasList() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nombre, tipo, proveedor o estado..."
+              placeholder="Buscar por nombre, marca, modelo, proveedor o estado..."
               className="flex-1 rounded-lg border px-4 py-2.5"
             />
             <div className="flex rounded-lg border overflow-hidden shrink-0">
@@ -142,9 +142,12 @@ export default function MaquinasList() {
                         <div>
                           <h3 className="font-semibold">{maquinaNombrePrincipal(m)}</h3>
                           <p className="text-sm text-[#6c757d] mt-0.5">{maquinaDetalleLinea(m)}</p>
-                          {m.tomadaPor && (
+                          {(m.revisoresEnCurso?.length || m.tomadaPor) && (
                             <p className="text-xs font-medium text-amber-800 mt-1">
-                              En curso: {m.tomadaPor.nombreCompleto}
+                              En curso:{' '}
+                              {m.revisoresEnCurso?.length
+                                ? m.revisoresEnCurso.map((r) => r.nombreCompleto).join(', ')
+                                : m.tomadaPor?.nombreCompleto}
                             </p>
                           )}
                         </div>
@@ -221,8 +224,13 @@ export default function MaquinasList() {
                         </td>
                         <td className="p-3">
                           {m.precioVentaUsd ? `$${m.precioVentaUsd}` : '—'}
-                          {m.tomadaPor && (
-                            <p className="text-xs text-amber-800">En curso: {m.tomadaPor.nombreCompleto}</p>
+                          {(m.revisoresEnCurso?.length || m.tomadaPor) && (
+                            <p className="text-xs text-amber-800">
+                              En curso:{' '}
+                              {m.revisoresEnCurso?.length
+                                ? m.revisoresEnCurso.map((r) => r.nombreCompleto).join(', ')
+                                : m.tomadaPor?.nombreCompleto}
+                            </p>
                           )}
                         </td>
                         <td className="p-3 text-right">

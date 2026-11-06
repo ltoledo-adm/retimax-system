@@ -20,6 +20,7 @@ type Ficha = {
   estado: EstadoMaquina;
   imagenes: { id: string; url: string; thumbnailUrl: string }[];
   tomadaPor: { id: string; nombre: string } | null;
+  revisores: { id: string; nombre: string }[];
   esMia: boolean;
   puedoTomar: boolean;
   motivoBloqueo: string | null;
@@ -112,9 +113,9 @@ export default function MiMaquinaPage() {
 
               {error && <p className="text-red-600 text-sm">{error}</p>}
 
-              {ficha.motivoBloqueo && !ficha.esMia && (
+              {!!ficha.revisores.length && !ficha.esMia && (
                 <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {ficha.motivoBloqueo} Usted puede ver la máquina, pero no puede empezar a trabajarla.
+                  También la revisan: {ficha.revisores.map((r) => r.nombre).join(', ')}. Usted puede hacer su propia revisión. Cada uno envía su trabajo y el administrador aprueba cada uno.
                 </p>
               )}
 
@@ -122,9 +123,9 @@ export default function MiMaquinaPage() {
                 <TrabajoEmpleadoPanel trabajo={ficha.miTrabajo} onChanged={load} />
               ) : ficha.puedoTomar ? (
                 <form onSubmit={tomar} className="rounded-xl bg-white border p-5 space-y-3">
-                  <p className="font-semibold">Empezar a trabajar esta máquina</p>
+                  <p className="font-semibold">Empezar mi revisión</p>
                   <p className="text-sm text-[#6c757d]">
-                    Queda a su nombre. Otro empleado no podrá tomarla hasta que el administrador revise el trabajo.
+                    Queda a su nombre, con sus avances de cada día. Si otro compañero también la revisa, el administrador aprueba el trabajo de cada uno.
                   </p>
                   <label className="block text-sm">
                     Qué va a hacer *
@@ -178,7 +179,7 @@ export default function MiMaquinaPage() {
                     disabled={busy}
                     className="rounded-lg bg-[#f5c842] px-4 py-2 font-semibold text-sm disabled:opacity-50"
                   >
-                    {busy ? 'Guardando...' : 'Tomar máquina'}
+                    {busy ? 'Guardando...' : 'Empezar mi revisión'}
                   </button>
                 </form>
               ) : null}

@@ -99,6 +99,14 @@ export class IntervencionesService {
       include: {
         tomadaPor: { select: { id: true, nombre: true, apellido: true } },
         imagenes: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 1 },
+        intervenciones: {
+          where: this.revisionAbierta(),
+          select: {
+            responsableId: true,
+            responsableNombre: true,
+            responsable: { select: { id: true, nombre: true, apellido: true } },
+          },
+        },
       },
       orderBy: { nombre: 'asc' },
     });
@@ -112,6 +120,14 @@ export class IntervencionesService {
       include: {
         tomadaPor: { select: { id: true, nombre: true, apellido: true } },
         imagenes: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
+        intervenciones: {
+          where: this.revisionAbierta(),
+          select: {
+            responsableId: true,
+            responsableNombre: true,
+            responsable: { select: { id: true, nombre: true, apellido: true } },
+          },
+        },
       },
     });
     if (!maquina || maquina.estado === EstadoMaquina.VENDIDA) {
@@ -612,6 +628,20 @@ export class IntervencionesService {
     return empleado.id;
   }
 
+  private revisionAbierta() {
+    return {
+      tipo: TipoIntervencion.TRABAJO_REALIZADO,
+      estadoIntervencion: {
+        in: [
+          EstadoIntervencion.ASIGNADO,
+          EstadoIntervencion.EN_PROCESO,
+          EstadoIntervencion.RECHAZADO,
+          EstadoIntervencion.FINALIZADO,
+        ],
+      },
+    };
+  }
+
   private fichaCorta(
     maquina: {
       id: string;
@@ -623,14 +653,24 @@ export class IntervencionesService {
       tomadaPorId: string | null;
       imagenes?: { thumbnailUrl: string }[];
       tomadaPor: { id: string; nombre: string; apellido: string } | null;
+      intervenciones?: {
+        responsableId: string | null;
+        responsableNombre: string | null;
+        responsable: { id: string; nombre: string; apellido: string } | null;
+      }[];
     },
     empleadoId: string,
   ) {
-    const mia = maquina.tomadaPorId === empleadoId;
-    const tomada = Boolean(maquina.tomadaPorId);
-    const nombre = maquina.tomadaPor
-      ? `${maquina.tomadaPor.nombre} ${maquina.tomadaPor.apellido}`.trim()
-      : null;
+    const revisores = new Map<string, string>();
+    for (const row of maquina.intervenciones ?? []) {
+      if (!row.responsableId) continue;
+      const nombre = row.responsable
+        ? `${row.responsable.nombre} ${row.responsable.apellido}`.trim()
+        : row.responsableNombre?.trim();
+      if (nombre) revisores.set(row.responsableId, nombre);
+    }
+    const lista = [...revisores.entries()].map(([id, nombre]) => ({ id, nombre }));
+    const mia = revisores.has(empleadoId);
     return {
       id: maquina.id,
       nombre: maquina.nombre,
@@ -639,11 +679,16 @@ export class IntervencionesService {
       modelo: maquina.modelo,
       estado: maquina.estado,
       thumbnailUrl: maquina.imagenes?.[0]?.thumbnailUrl ?? null,
-      tomadaPor: maquina.tomadaPor ? { id: maquina.tomadaPor.id, nombre } : null,
+      tomadaPor: maquina.tomadaPor
+        ? {
+            id: maquina.tomadaPor.id,
+            nombre: `${maquina.tomadaPor.nombre} ${maquina.tomadaPor.apellido}`.trim(),
+          }
+        : null,
+      revisores: lista,
       esMia: mia,
-      puedoTomar: !tomada || mia,
-      motivoBloqueo:
-        tomada && !mia ? `Esta máquina ya la está trabajando ${nombre}.` : null,
+      puedoTomar: true,
+      motivoBloqueo: null,
     };
   }
 
@@ -671,51 +716,43 @@ export class IntervencionesService {
   ) {
     const maquina = await tx.maquina.findUnique({
       where: { id: maquinaId },
-      include: { tomadaPor: { select: { nombre: true, apellido: true } } },
     });
     if (!maquina) throw new NotFoundException('Máquina no encontrada');
     if (maquina.estado === EstadoMaquina.VENDIDA) {
       throw new BadRequestException('Esta máquina ya está vendida');
     }
-    if (maquina.tomadaPorId && maquina.tomadaPorId !== empleadoId) {
-      const nombre = maquina.tomadaPor
-        ? `${maquina.tomadaPor.nombre} ${maquina.tomadaPor.apellido}`.trim()
-        : 'otro empleado';
-      throw new BadRequestException(
-        `Esta máquina ya la está trabajando ${nombre}. Otro empleado no puede tomarla.`,
-      );
-    }
     if (!maquina.tomadaPorId) {
-      const claimed = await tx.maquina.updateMany({
+      await tx.maquina.updateMany({
         where: { id: maquinaId, tomadaPorId: null },
         data: { tomadaPorId: empleadoId, tomadaEn: new Date() },
       });
-      if (claimed.count === 0) {
-        throw new BadRequestException('Otro empleado acaba de tomar esta máquina.');
-      }
     }
   }
 
   private async soltarSiTerminada(maquinaId: string) {
-    const abiertas = await this.prisma.intervencion.count({
-      where: {
-        maquinaId,
-        tipo: TipoIntervencion.TRABAJO_REALIZADO,
-        estadoIntervencion: {
-          in: [
-            EstadoIntervencion.ASIGNADO,
-            EstadoIntervencion.EN_PROCESO,
-            EstadoIntervencion.RECHAZADO,
-            EstadoIntervencion.FINALIZADO,
-          ],
-        },
-      },
+    const abiertas = await this.prisma.intervencion.findMany({
+      where: { maquinaId, ...this.revisionAbierta() },
+      select: { responsableId: true },
+      orderBy: { fechaInicio: 'asc' },
     });
-    if (abiertas === 0) {
+    if (abiertas.length === 0) {
       await this.prisma.maquina.update({
         where: { id: maquinaId },
         data: { tomadaPorId: null, tomadaEn: null },
       });
+      return;
     }
+    const maquina = await this.prisma.maquina.findUnique({
+      where: { id: maquinaId },
+      select: { tomadaPorId: true },
+    });
+    const sigue = abiertas.some((row) => row.responsableId && row.responsableId === maquina?.tomadaPorId);
+    if (sigue) return;
+    const siguiente = abiertas.find((row) => row.responsableId)?.responsableId;
+    if (!siguiente) return;
+    await this.prisma.maquina.update({
+      where: { id: maquinaId },
+      data: { tomadaPorId: siguiente, tomadaEn: new Date() },
+    });
   }
 }

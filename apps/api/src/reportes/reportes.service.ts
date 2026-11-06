@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { EstadoMaquina, EstadoPedido, TipoIntervencion } from '@prisma/client';
+import { EstadoIntervencion, EstadoMaquina, EstadoPedido, TipoIntervencion } from '@prisma/client';
 import { decimalToString } from '../common/mappers';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -244,10 +244,24 @@ export class ReportesService {
     const fin = new Date(`${rango.hasta}T23:59:59.999-04:00`);
 
     const [enCurso, trabajos] = await Promise.all([
-      this.prisma.maquina.findMany({
-        where: { tomadaPorId: { not: null } },
-        include: { tomadaPor: true },
-        orderBy: { tomadaEn: 'desc' },
+      this.prisma.intervencion.findMany({
+        where: {
+          tipo: TipoIntervencion.TRABAJO_REALIZADO,
+          responsableId: { not: null },
+          estadoIntervencion: {
+            in: [
+              EstadoIntervencion.ASIGNADO,
+              EstadoIntervencion.EN_PROCESO,
+              EstadoIntervencion.RECHAZADO,
+              EstadoIntervencion.FINALIZADO,
+            ],
+          },
+        },
+        include: {
+          maquina: { select: { id: true, nombre: true } },
+          responsable: true,
+        },
+        orderBy: { fechaInicio: 'desc' },
       }),
       this.prisma.intervencion.findMany({
         where: {
@@ -320,13 +334,13 @@ export class ReportesService {
     return {
       desde: rango.desde,
       hasta: rango.hasta,
-      enCurso: enCurso.map((m) => ({
-        maquinaId: m.id,
-        maquinaNombre: m.nombre,
-        empleadoNombre: m.tomadaPor
-          ? `${m.tomadaPor.nombre} ${m.tomadaPor.apellido}`.trim()
+      enCurso: enCurso.map((row) => ({
+        maquinaId: row.maquina.id,
+        maquinaNombre: row.maquina.nombre,
+        empleadoNombre: row.responsable
+          ? `${row.responsable.nombre} ${row.responsable.apellido}`.trim()
           : '—',
-        desde: m.tomadaEn?.toISOString() ?? null,
+        desde: row.fechaInicio?.toISOString() ?? null,
       })),
       empleados: [...grupos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
     };

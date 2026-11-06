@@ -82,7 +82,11 @@ export class MaquinasService {
       },
       orderBy: { updatedAt: 'desc' },
     });
-    return maquinas.map((m) => toMaquinaDto(m));
+    const revisores = await this.revisoresPorMaquina(maquinas.map((m) => m.id));
+    return maquinas.map((m) => ({
+      ...toMaquinaDto(m),
+      revisoresEnCurso: revisores.get(m.id) ?? [],
+    }));
   }
 
   async findOne(id: string) {
@@ -92,7 +96,46 @@ export class MaquinasService {
       include: this.includeDetail(),
     });
     if (!maquina) throw new NotFoundException('Máquina no encontrada');
-    return toMaquinaDto(maquina);
+    const revisores = await this.revisoresPorMaquina([maquina.id]);
+    return { ...toMaquinaDto(maquina), revisoresEnCurso: revisores.get(maquina.id) ?? [] };
+  }
+
+  private async revisoresPorMaquina(ids: string[]) {
+    const grupos = new Map<string, { id: string; nombreCompleto: string }[]>();
+    if (!ids.length) return grupos;
+    const rows = await this.prisma.intervencion.findMany({
+      where: {
+        maquinaId: { in: ids },
+        tipo: TipoIntervencion.TRABAJO_REALIZADO,
+        estadoIntervencion: {
+          in: [
+            EstadoIntervencion.ASIGNADO,
+            EstadoIntervencion.EN_PROCESO,
+            EstadoIntervencion.RECHAZADO,
+            EstadoIntervencion.FINALIZADO,
+          ],
+        },
+      },
+      select: {
+        maquinaId: true,
+        responsableId: true,
+        responsableNombre: true,
+        responsable: { select: { id: true, nombre: true, apellido: true } },
+      },
+    });
+    for (const row of rows) {
+      if (!row.responsableId) continue;
+      const nombreCompleto = row.responsable
+        ? `${row.responsable.nombre} ${row.responsable.apellido}`.trim()
+        : row.responsableNombre?.trim();
+      if (!nombreCompleto) continue;
+      const lista = grupos.get(row.maquinaId) ?? [];
+      if (!lista.some((item) => item.id === row.responsableId)) {
+        lista.push({ id: row.responsableId, nombreCompleto });
+      }
+      grupos.set(row.maquinaId, lista);
+    }
+    return grupos;
   }
 
   async getHistorialEstados(id: string) {
@@ -447,7 +490,7 @@ export class MaquinasService {
       },
     });
 
-    await this.sincronizarTrabajoAbierto(maquinaId, intervencion.area, {
+    await this.sincronizarTrabajoAbierto(maquinaId, intervencion.area, intervencion.responsableId, {
       descripcion,
       responsableId,
       responsableNombre,
@@ -912,6 +955,7 @@ export class MaquinasService {
   private async sincronizarTrabajoAbierto(
     maquinaId: string,
     area: AreaIntervencion,
+    responsableAnteriorId: string | null,
     data: {
       descripcion: string;
       responsableId: string | null;
@@ -923,6 +967,7 @@ export class MaquinasService {
         maquinaId,
         tipo: TipoIntervencion.TRABAJO_REALIZADO,
         area,
+        responsableId: responsableAnteriorId,
         estadoIntervencion: {
           in: [
             EstadoIntervencion.ASIGNADO,

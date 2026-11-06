@@ -234,6 +234,7 @@ export interface MaquinaDto {
   monedaCompra?: Moneda;
   precioVentaUsd?: string | null;
   tomadaPor?: { id: string; nombreCompleto: string } | null;
+  revisoresEnCurso?: { id: string; nombreCompleto: string }[];
   tipoCambioUsado?: string | null;
   precioVentaBob?: string | null;
   fechaCompra?: string | null;
