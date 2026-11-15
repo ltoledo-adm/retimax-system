@@ -14,6 +14,7 @@ import { ResumenSemana } from '@/components/ResumenSemana';
 import { PrintReport } from '@/components/PrintReport';
 import { apiFetch, imageUrl } from '@/lib/api';
 import { formatDateTime } from '@/lib/dates';
+import { maquinaNombreConMarca } from '@/lib/maquina-display';
 import {
   AREA_LABELS,
   ESTADO_COLORS,
@@ -150,13 +151,19 @@ export default function ReportesPage() {
                       <tr key={v.id} className="border-b last:border-0">
                         <td className="py-2 pr-3">
                           <Link href={`/maquinas/${v.maquinaId}`} className="font-medium hover:text-[#f5c842]">
-                            {v.maquinaNombre}
+                            {maquinaNombreConMarca({
+                              nombre: v.maquinaNombre,
+                              marca: v.maquinaMarca,
+                              modelo: v.maquinaModelo,
+                            })}
                           </Link>
                         </td>
                         <td className="py-2 pr-3">{v.clienteNombre}</td>
                         <td className="py-2 pr-3">{v.proveedor}</td>
                         <td className="py-2 pr-3">${v.precioFinalUsd}</td>
-                        <td className="py-2 pr-3">Bs {v.precioFinalBob}</td>
+                        <td className="py-2 pr-3">
+                          {v.precioFinalBob ? `Bs ${v.precioFinalBob}` : 'Pago en USD'}
+                        </td>
                         <td className="py-2">{new Date(v.createdAt).toLocaleDateString('es-BO')}</td>
                       </tr>
                     ))}
@@ -226,7 +233,11 @@ export default function ReportesPage() {
                         <td className="py-2 pr-3">{t.empleado}</td>
                         <td className="py-2 pr-3">
                           <Link href={`/maquinas/${t.maquinaId}`} className="hover:text-[#f5c842]">
-                            {t.maquinaNombre}
+                            {maquinaNombreConMarca({
+                              nombre: t.maquinaNombre,
+                              marca: t.maquinaMarca,
+                              modelo: t.maquinaModelo,
+                            })}
                           </Link>
                         </td>
                         <td className="py-2 pr-3">{AREA_LABELS[t.area]}</td>
@@ -305,7 +316,7 @@ export default function ReportesPage() {
                       </td>
                       <td className="py-2 pr-3">
                         <Link href={`/maquinas/${m.id}`} className="font-medium hover:text-[#f5c842]">
-                          {m.nombre}
+                          {maquinaNombreConMarca(m)}
                         </Link>
                         <p className="text-xs text-[#6c757d]">{m.tipo}</p>
                       </td>
@@ -376,10 +387,16 @@ export default function ReportesPage() {
               <tbody>
                 {data.ventas.map((v) => (
                   <tr key={v.id} className="border-b">
-                    <td className="py-2 pr-2">{v.maquinaNombre}</td>
+                    <td className="py-2 pr-2">
+                      {maquinaNombreConMarca({
+                        nombre: v.maquinaNombre,
+                        marca: v.maquinaMarca,
+                        modelo: v.maquinaModelo,
+                      })}
+                    </td>
                     <td className="py-2 pr-2">{v.clienteNombre}</td>
                     <td className="py-2 pr-2">${v.precioFinalUsd}</td>
-                    <td className="py-2 pr-2">Bs {v.precioFinalBob}</td>
+                    <td className="py-2 pr-2">{v.precioFinalBob ? `Bs ${v.precioFinalBob}` : 'Pago en USD'}</td>
                     <td className="py-2">{new Date(v.createdAt).toLocaleDateString('es-BO')}</td>
                   </tr>
                 ))}
@@ -450,7 +467,13 @@ export default function ReportesPage() {
                 {trabajos.map((t) => (
                   <tr key={t.id} className="border-b align-top">
                     <td className="py-2 pr-1">{t.empleado}</td>
-                    <td className="py-2 pr-1">{t.maquinaNombre}</td>
+                    <td className="py-2 pr-1">
+                      {maquinaNombreConMarca({
+                        nombre: t.maquinaNombre,
+                        marca: t.maquinaMarca,
+                        modelo: t.maquinaModelo,
+                      })}
+                    </td>
                     <td className="py-2 pr-1">{TIPO_INTERVENCION_LABELS[t.tipo]}</td>
                     <td className="py-2 pr-1">
                       {(t.estadoIntervencion ?? 'ASIGNADO').replace(/_/g, ' ')}
@@ -483,7 +506,7 @@ export default function ReportesPage() {
               <tbody>
                 {maquinasFiltradas.map((m) => (
                   <tr key={m.id} className="border-b">
-                    <td className="py-2 pr-1">{m.nombre}</td>
+                    <td className="py-2 pr-1">{maquinaNombreConMarca(m)}</td>
                     <td className="py-2 pr-1">{ESTADO_LABELS[m.estado]}</td>
                     <td className="py-2 pr-1">{m.proveedor}</td>
                     <td className="py-2 pr-1">{m.vendidaA ?? m.reservadaPor ?? '—'}</td>

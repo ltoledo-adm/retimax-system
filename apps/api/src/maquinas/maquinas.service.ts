@@ -545,6 +545,10 @@ export class MaquinasService {
       throw new BadRequestException('Solo se puede finalizar diagnóstico en ese estado');
     }
 
+    if (dto.requiereMantenimiento === false) {
+      return this.cerrarSinMantenimiento(maquina, dto.motivoSinMantenimiento, user);
+    }
+
     const asignaciones = await this.prisma.intervencion.findMany({
       where: {
         maquinaId: id,
@@ -616,22 +620,62 @@ export class MaquinasService {
       return toMaquinaDto(updated);
     }
 
-    const skipMantenimiento = dto.requiereMantenimiento === false;
-    if (!skipMantenimiento) {
-      throw new BadRequestException(
-        'Sin observaciones registradas: marque "No requiere mantenimiento" e indique el motivo',
-      );
-    }
-    if (!dto.motivoSinMantenimiento?.trim()) {
+    throw new BadRequestException(
+      'Sin observaciones registradas: marque "No requiere mantenimiento" e indique el motivo',
+    );
+  }
+
+  private async cerrarSinMantenimiento(maquina: { id: string; estado: EstadoMaquina }, motivo: string | undefined, user: Usuario) {
+    const texto = motivo?.trim() ?? '';
+    if (texto.length < 3) {
       throw new BadRequestException('Indique por qué no requiere mantenimiento');
     }
 
-    const updated = await this.changeEstado(
-      maquina,
-      EstadoMaquina.LISTA_PARA_VENTA,
-      user.id,
-      `Diagnóstico preventivo: ${dto.motivoSinMantenimiento.trim()}`,
-    );
+    const enCurso = await this.prisma.intervencion.count({
+      where: {
+        maquinaId: maquina.id,
+        tipo: TipoIntervencion.TRABAJO_REALIZADO,
+        estadoIntervencion: {
+          in: [
+            EstadoIntervencion.EN_PROCESO,
+            EstadoIntervencion.RECHAZADO,
+            EstadoIntervencion.FINALIZADO,
+          ],
+        },
+      },
+    });
+    if (enCurso > 0) {
+      throw new BadRequestException(
+        'Hay un trabajo en curso. Ciérrelo antes de pasar directo a venta.',
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.intervencion.updateMany({
+        where: {
+          maquinaId: maquina.id,
+          estadoIntervencion: EstadoIntervencion.ASIGNADO,
+          tipo: {
+            in: [TipoIntervencion.DIAGNOSTICO_INICIAL, TipoIntervencion.TRABAJO_REALIZADO],
+          },
+        },
+        data: { estadoIntervencion: EstadoIntervencion.CANCELADO },
+      });
+      await tx.historialEstado.create({
+        data: {
+          maquinaId: maquina.id,
+          estado: EstadoMaquina.LISTA_PARA_VENTA,
+          anterior: maquina.estado,
+          motivo: `No requiere mantenimiento: ${texto}`,
+          creadoPorId: user.id,
+        },
+      });
+      return tx.maquina.update({
+        where: { id: maquina.id },
+        data: { estado: EstadoMaquina.LISTA_PARA_VENTA },
+        include: this.includeDetail(),
+      });
+    });
     return toMaquinaDto(updated);
   }
 
@@ -732,6 +776,36 @@ export class MaquinasService {
       EstadoMaquina.LISTA_PARA_VENTA,
       user.id,
       `No requiere mantenimiento: ${texto}`,
+    );
+    return toMaquinaDto(updated);
+  }
+
+  async pasarDirectoAVenta(id: string, motivo: string, user: Usuario) {
+    const maquina = await this.prisma.maquina.findUnique({ where: { id } });
+    if (!maquina) throw new NotFoundException('Máquina no encontrada');
+    if (maquina.estado === EstadoMaquina.EN_DIAGNOSTICO) {
+      return this.finalizarDiagnostico(
+        id,
+        { requiereMantenimiento: false, motivoSinMantenimiento: motivo },
+        user,
+      );
+    }
+    if (maquina.estado !== EstadoMaquina.RECIBIDA) {
+      throw new BadRequestException(
+        'Solo se pasa directo a venta desde recibida o diagnóstico',
+      );
+    }
+
+    const texto = motivo.trim();
+    if (texto.length < 3) {
+      throw new BadRequestException('Indique por qué pasa directo a venta');
+    }
+
+    const updated = await this.changeEstado(
+      maquina,
+      EstadoMaquina.LISTA_PARA_VENTA,
+      user.id,
+      `Recepción directa a venta: ${texto}`,
     );
     return toMaquinaDto(updated);
   }

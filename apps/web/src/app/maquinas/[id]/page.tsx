@@ -25,7 +25,7 @@ import { ImagePicker } from '@/components/ImagePicker';
 import { apiFetch } from '@/lib/api';
 import { prepararFotos } from '@/lib/preparar-foto';
 import { formatFecha, formatDateTime } from '@/lib/dates';
-import { maquinaDetalleLinea, maquinaNombrePrincipal } from '@/lib/maquina-display';
+import { maquinaDetalleLinea, maquinaNombreConMarca, maquinaNombrePrincipal } from '@/lib/maquina-display';
 import {
   AREA_LABELS,
   ESTADO_COLORS,
@@ -66,6 +66,7 @@ export default function MaquinaDetailPage() {
   const [fechaLlegadaEst, setFechaLlegadaEst] = useState('');
   const [fechaRecibida, setFechaRecibida] = useState('');
   const [recepcionDesc, setRecepcionDesc] = useState('');
+  const [motivoDirecto, setMotivoDirecto] = useState('');
   const [fotosLlegada, setFotosLlegada] = useState<File[]>([]);
 
   const [precioCompraUsd, setPrecioCompraUsd] = useState('');
@@ -260,7 +261,29 @@ export default function MaquinaDetailPage() {
 
   async function pasarListaParaVenta() {
     await cambiarEstado(EstadoMaquina.LISTA_PARA_VENTA, 'Trabajo validado');
-    if (maquina) notifyListaParaVenta(maquina.nombre);
+    if (maquina) notifyListaParaVenta(maquinaNombreConMarca(maquina));
+  }
+
+  async function pasarDirectoAVenta() {
+    if (motivoDirecto.trim().length < 3) {
+      setError('Indique por qué pasa directo a venta');
+      return;
+    }
+    setActionLoading(true);
+    setError('');
+    try {
+      await apiFetch(`/maquinas/${params.id}/venta-directa`, {
+        method: 'POST',
+        body: JSON.stringify({ motivo: motivoDirecto.trim() }),
+      });
+      if (maquina) notifyListaParaVenta(maquinaNombreConMarca(maquina));
+      setMotivoDirecto('');
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al pasar a venta');
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   async function omitirMantenimiento(motivo: string) {
@@ -271,7 +294,7 @@ export default function MaquinaDetailPage() {
         method: 'POST',
         body: JSON.stringify({ motivo }),
       });
-      if (maquina) notifyListaParaVenta(maquina.nombre);
+      if (maquina) notifyListaParaVenta(maquinaNombreConMarca(maquina));
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al omitir mantenimiento');
@@ -753,6 +776,7 @@ export default function MaquinaDetailPage() {
             )}
 
             {estado === EstadoMaquina.RECIBIDA && (
+              <>
               <form onSubmit={handleRecepcion} className="space-y-4 border-t pt-4">
                 <p className="text-sm font-medium">Verificar cómo llegó la máquina (descargo del contenedor)</p>
                 <textarea
@@ -777,6 +801,27 @@ export default function MaquinaDetailPage() {
                   {actionLoading ? 'Guardando...' : 'Confirmar recepción → Diagnóstico'}
                 </button>
               </form>
+              <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-4">
+                <p className="text-sm font-medium">
+                  Si se vende así como llegó, sin diagnóstico ni mantenimiento
+                </p>
+                <textarea
+                  value={motivoDirecto}
+                  onChange={(e) => setMotivoDirecto(e.target.value)}
+                  rows={2}
+                  placeholder="Ej: Se vende así como llegó"
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  disabled={actionLoading || motivoDirecto.trim().length < 3}
+                  onClick={pasarDirectoAVenta}
+                  className="rounded-lg bg-[#f5c842] px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                >
+                  Pasar directo a lista para venta
+                </button>
+              </div>
+              </>
             )}
 
             {estado === EstadoMaquina.EN_DIAGNOSTICO && (
@@ -787,7 +832,7 @@ export default function MaquinaDetailPage() {
                 notaGeneral={notaDiagnostico}
                 onUpdated={load}
                 onListaParaVenta={notifyListaParaVenta}
-                maquinaNombre={maquina.nombre}
+                maquinaNombre={maquinaNombreConMarca(maquina)}
               />
             )}
 
@@ -809,7 +854,7 @@ export default function MaquinaDetailPage() {
                 precioCompraUsd={maquina.precioCompraUsd}
                 monedaCompra={maquina.monedaCompra}
                 precioVentaUsd={maquina.precioVentaUsd}
-                maquinaNombre={maquina.nombre}
+                maquinaNombre={maquinaNombreConMarca(maquina)}
                 onSave={savePrecio}
               />
             )}

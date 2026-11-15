@@ -5,6 +5,14 @@ export function maquinaNombrePrincipal(m: Pick<MaquinaDto, 'nombre'>): string {
   return m.nombre.trim();
 }
 
+/** Nombre más marca y modelo, para no confundir dos máquinas con el mismo nombre. */
+export function maquinaNombreConMarca(
+  m: { nombre: string; marca?: string | null; modelo?: string | null },
+): string {
+  const extra = [m.marca, m.modelo].filter((parte) => parte?.trim()).join(' · ');
+  return extra ? `${m.nombre.trim()} · ${extra}` : m.nombre.trim();
+}
+
 /** Línea de detalle: tipo · marca · modelo · año */
 export function maquinaDetalleLinea(
   m: Pick<MaquinaDto, 'tipo' | 'marca' | 'modelo' | 'anio'>,

@@ -303,8 +303,8 @@ model Venta {
   clienteId      String
   cliente        Cliente  @relation(fields: [clienteId], references: [id])
   precioFinalUsd Decimal  @db.Decimal(10, 2)
-  precioFinalBob Decimal  @db.Decimal(10, 2)
-  tipoCambio     Decimal  @db.Decimal(10, 4)
+  precioFinalBob Decimal? @db.Decimal(10, 2)
+  tipoCambio     Decimal? @db.Decimal(10, 4)
   fechaEntrega   DateTime
   createdAt      DateTime @default(now())
 

@@ -18,6 +18,7 @@ import { ClienteModal } from '@/components/ClienteModal';
 import { ReciboPrint } from '@/components/ReciboPrint';
 import { apiFetch } from '@/lib/api';
 import { ESTADO_LABELS } from '@/lib/labels';
+import { maquinaNombreConMarca } from '@/lib/maquina-display';
 import { formatDecimal, multiplyDecimals, normalizeDecimal } from '@/lib/numbers';
 
 type ReservaInfo = {
@@ -42,6 +43,7 @@ export default function VentasPage() {
   const [loading, setLoading] = useState(false);
   const [recibo, setRecibo] = useState<ReciboVentaDto | null>(null);
   const [reservaInfo, setReservaInfo] = useState<ReservaInfo | null>(null);
+  const [pagoEnDolares, setPagoEnDolares] = useState(false);
   const [form, setForm] = useState({
     maquinaId: '',
     clienteId: '',
@@ -130,10 +132,11 @@ export default function VentasPage() {
       maquinaId: venta.maquinaId,
       clienteId: venta.clienteId,
       precioFinalUsd: venta.precioFinalUsd,
-      precioFinalBob: venta.precioFinalBob,
-      tipoCambio: venta.tipoCambio,
+      precioFinalBob: venta.precioFinalBob ?? '',
+      tipoCambio: venta.tipoCambio ?? '',
       fechaEntrega: venta.fechaEntrega.slice(0, 10),
     });
+    setPagoEnDolares(!venta.tipoCambio);
     setTipoVenta('MAQUINARIA');
     setShowForm(true);
     setReservaInfo(null);
@@ -198,12 +201,16 @@ export default function VentasPage() {
     setLoading(true);
     try {
       const precioFinalUsd = formatDecimal(form.precioFinalUsd);
-      const tipoCambio = formatDecimal(form.tipoCambio, 4);
-      const precioFinalBob =
-        formatDecimal(form.precioFinalBob) ?? multiplyDecimals(form.precioFinalUsd, form.tipoCambio);
+      const tipoCambio = pagoEnDolares ? undefined : formatDecimal(form.tipoCambio, 4);
+      const precioFinalBob = pagoEnDolares
+        ? undefined
+        : (formatDecimal(form.precioFinalBob) ?? multiplyDecimals(form.precioFinalUsd, form.tipoCambio));
 
-      if (!precioFinalUsd || !tipoCambio || !precioFinalBob) {
-        throw new Error('Precio USD, tipo de cambio y precio BOB deben ser números válidos');
+      if (!precioFinalUsd) throw new Error('El precio en dólares debe ser un número válido');
+      if (!pagoEnDolares && (!tipoCambio || !precioFinalBob)) {
+        throw new Error(
+          'Indique el tipo de cambio. Si le pagan en dólares, marque "Pago en dólares".',
+        );
       }
       if (!form.fechaEntrega) throw new Error('Selecciona la fecha de entrega');
 
@@ -213,8 +220,9 @@ export default function VentasPage() {
           body: JSON.stringify({
             clienteId: form.clienteId,
             precioFinalUsd,
-            precioFinalBob,
-            tipoCambio,
+            ...(pagoEnDolares
+              ? { pagoEnDolares: true }
+              : { precioFinalBob, tipoCambio }),
             fechaEntrega: form.fechaEntrega,
           }),
         });
@@ -231,8 +239,7 @@ export default function VentasPage() {
           maquinaId: form.maquinaId,
           clienteId: form.clienteId,
           precioFinalUsd,
-          precioFinalBob,
-          tipoCambio,
+          ...(pagoEnDolares ? { pagoEnDolares: true } : { precioFinalBob, tipoCambio }),
           fechaEntrega: form.fechaEntrega,
         }),
       });
@@ -259,6 +266,7 @@ export default function VentasPage() {
       tipoCambio: '',
       fechaEntrega: '',
     });
+    setPagoEnDolares(false);
     setReservaInfo(null);
   }
 
@@ -446,7 +454,7 @@ export default function VentasPage() {
                 <option value="">Máquina (lista para venta o reservada)</option>
                 {maquinas.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.nombre} — {ESTADO_LABELS[m.estado]}
+                    {maquinaNombreConMarca(m)} — {ESTADO_LABELS[m.estado]}
                     {m.precioVentaUsd ? ` ($${m.precioVentaUsd})` : ''}
                   </option>
                 ))}
@@ -505,6 +513,15 @@ export default function VentasPage() {
                     required
                   />
                 </div>
+                <label className="sm:col-span-2 flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={pagoEnDolares}
+                    onChange={(e) => setPagoEnDolares(e.target.checked)}
+                  />
+                  Pago en dólares
+                </label>
+                {!pagoEnDolares && (
                 <div>
                   <label className="block text-xs text-[#6c757d] mb-1">Tipo de cambio</label>
                   <input
@@ -514,6 +531,8 @@ export default function VentasPage() {
                     required
                   />
                 </div>
+                )}
+                {!pagoEnDolares && (
                 <div>
                   <label className="block text-xs text-[#6c757d] mb-1">Precio BOB (auto)</label>
                   <input
@@ -523,6 +542,7 @@ export default function VentasPage() {
                     required
                   />
                 </div>
+                )}
                 <div>
                   <label className="block text-xs text-[#6c757d] mb-1">Fecha de entrega</label>
                   <input
@@ -585,11 +605,13 @@ export default function VentasPage() {
                           href={`/maquinas/${v.maquinaId}`}
                           className="font-semibold hover:text-[#f5c842]"
                         >
-                          {v.maquina?.nombre ?? 'Máquina'}
+                          {v.maquina ? maquinaNombreConMarca(v.maquina) : 'Máquina'}
                         </Link>
                         <p className="text-sm text-[#6c757d]">Cliente: {v.cliente?.nombre}</p>
                         <p className="text-sm mt-1">
-                          ${v.precioFinalUsd} USD / Bs {v.precioFinalBob} (TC {v.tipoCambio})
+                          {v.tipoCambio
+                            ? `$${v.precioFinalUsd} USD / Bs ${v.precioFinalBob} (TC ${v.tipoCambio})`
+                            : `$${v.precioFinalUsd} USD · pago en dólares`}
                         </p>
                         <div className="flex flex-wrap gap-3 mt-2">
                           {v.reciboVenta && (
@@ -680,21 +702,32 @@ export default function VentasPage() {
                 </p>
               )}
               <p>
-                <span className="text-[#6c757d]">Máquina:</span> {recibo.venta?.maquina.nombre} (
-                {recibo.venta?.maquina.tipo})
+                <span className="text-[#6c757d]">Máquina:</span>{' '}
+                {recibo.venta
+                  ? maquinaNombreConMarca(recibo.venta.maquina)
+                  : '—'}{' '}
+                ({recibo.venta?.maquina.tipo})
               </p>
               <hr className="my-3" />
               <p>
                 <span className="text-[#6c757d]">Precio USD:</span>{' '}
                 <strong>${recibo.venta?.precioFinalUsd}</strong>
               </p>
-              <p>
-                <span className="text-[#6c757d]">Tipo cambio:</span> {recibo.venta?.tipoCambio}
-              </p>
-              <p>
-                <span className="text-[#6c757d]">Precio BOB:</span>{' '}
-                <strong>Bs {recibo.venta?.precioFinalBob}</strong>
-              </p>
+              {recibo.venta?.tipoCambio ? (
+                <>
+                  <p>
+                    <span className="text-[#6c757d]">Tipo cambio:</span> {recibo.venta.tipoCambio}
+                  </p>
+                  <p>
+                    <span className="text-[#6c757d]">Precio BOB:</span>{' '}
+                    <strong>Bs {recibo.venta.precioFinalBob}</strong>
+                  </p>
+                </>
+              ) : (
+                <p>
+                  <span className="text-[#6c757d]">Pago:</span> dólares en efectivo
+                </p>
+              )}
               <p>
                 <span className="text-[#6c757d]">Fecha entrega:</span>{' '}
                 {recibo.venta?.fechaEntrega &&

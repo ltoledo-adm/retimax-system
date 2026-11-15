@@ -382,23 +382,21 @@ export function DiagnosticoPanel({
         </button>
       </div>
 
-      {!hayAsignaciones && (
-        <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={noRequiere} onChange={(e) => setNoRequiere(e.target.checked)} />
-            No requiere mantenimiento
-          </label>
-          {noRequiere && (
-            <textarea
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              rows={2}
-              placeholder="Describa por qué no requiere mantenimiento"
-              className="w-full rounded-lg border px-3 py-2 text-sm"
-            />
-          )}
-        </div>
-      )}
+      <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-4">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={noRequiere} onChange={(e) => setNoRequiere(e.target.checked)} />
+          No requiere mantenimiento. Pasar directo a lista para venta
+        </label>
+        {noRequiere && (
+          <textarea
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            rows={2}
+            placeholder="Ej: Se vende así como llegó"
+            className="w-full rounded-lg border px-3 py-2 text-sm"
+          />
+        )}
+      </div>
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
@@ -412,22 +410,20 @@ export function DiagnosticoPanel({
           {loading ? 'Guardando...' : 'Pasar a mantenimiento'}
         </button>
 
-        {!hayAsignaciones && (
-          <button
-            type="button"
-            disabled={loading || !noRequiere || !motivo.trim()}
-            onClick={finalizarListaVenta}
-            className="rounded-lg bg-[#f5c842] px-4 py-2 text-sm font-semibold disabled:opacity-50"
-          >
-            Finalizar → Lista para venta
-          </button>
-        )}
+        <button
+          type="button"
+          disabled={loading || !noRequiere || motivo.trim().length < 3}
+          onClick={finalizarListaVenta}
+          className="rounded-lg bg-[#f5c842] px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          Pasar directo a lista para venta
+        </button>
       </div>
 
       {hayAsignaciones && (
         <p className="text-xs text-[#6c757d]">
-          Con observaciones por área registradas, use &quot;Pasar a mantenimiento&quot; para continuar el
-          flujo. Si regresa a diagnóstico, las asignaciones siguen visibles.
+          Si no va a haber mantenimiento, use el paso directo. Las asignaciones que aún no empezaron se
+          cierran. Un trabajo ya en curso debe terminarse antes.
         </p>
       )}
     </div>

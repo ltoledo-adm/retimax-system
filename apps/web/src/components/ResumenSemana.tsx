@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { formatFecha } from '@/lib/dates';
+import { maquinaNombreConMarca } from '@/lib/maquina-display';
 import { AREA_LABELS } from '@/lib/labels';
 import { AreaIntervencion } from '@retimax/shared-types';
 
@@ -13,6 +14,8 @@ type Resumen = {
   enCurso: {
     maquinaId: string;
     maquinaNombre: string;
+    maquinaMarca?: string | null;
+    maquinaModelo?: string | null;
     empleadoNombre: string;
     desde: string | null;
   }[];
@@ -22,6 +25,8 @@ type Resumen = {
     maquinas: {
       maquinaId: string;
       nombre: string;
+      marca?: string | null;
+      modelo?: string | null;
       estado: string;
       area: string;
       fechaInicio: string | null;
@@ -126,7 +131,11 @@ export function ResumenSemana() {
             {data.enCurso.map((item) => (
               <li key={`${item.maquinaId}-${item.empleadoNombre}`}>
                 <Link href={`/maquinas/${item.maquinaId}`} className="font-medium hover:underline">
-                  {item.maquinaNombre}
+                  {maquinaNombreConMarca({
+                    nombre: item.maquinaNombre,
+                    marca: item.maquinaMarca,
+                    modelo: item.maquinaModelo,
+                  })}
                 </Link>
                 <span className="text-[#6c757d]"> — {item.empleadoNombre}</span>
               </li>
@@ -146,7 +155,7 @@ export function ResumenSemana() {
                 {empleado.maquinas.map((m) => (
                   <li key={`${empleado.empleadoId}-${m.maquinaId}-${m.fechaInicio}`} className="text-sm">
                     <Link href={`/maquinas/${m.maquinaId}`} className="font-medium hover:underline">
-                      {m.nombre}
+                      {maquinaNombreConMarca(m)}
                     </Link>
                     <span className="text-[#6c757d]">
                       {' '}

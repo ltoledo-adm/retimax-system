@@ -190,6 +190,15 @@ export class MaquinasController {
     return this.maquinasService.guardarNotaDiagnostico(id, dto.descripcion, user);
   }
 
+  @Post(':id/venta-directa')
+  pasarDirectoAVenta(
+    @Param('id') id: string,
+    @Body() dto: OmitirMantenimientoDto,
+    @CurrentUser() user: Usuario,
+  ) {
+    return this.maquinasService.pasarDirectoAVenta(id, dto.motivo, user);
+  }
+
   @Post(':id/mantenimiento/omitir')
   omitirMantenimiento(
     @Param('id') id: string,

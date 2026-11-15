@@ -388,12 +388,18 @@ export function toReciboVentaDto(r: {
   venta?: {
     id: string;
     precioFinalUsd: Decimal;
-    precioFinalBob: Decimal;
-    tipoCambio: Decimal;
+    precioFinalBob: Decimal | null;
+    tipoCambio: Decimal | null;
     fechaEntrega: Date;
     createdAt: Date;
     cliente: { nombre: string; telefono: string | null };
-    maquina: { nombre: string; tipo: string; proveedor?: { nombre: string } };
+    maquina: {
+      nombre: string;
+      tipo: string;
+      marca?: string | null;
+      modelo?: string | null;
+      proveedor?: { nombre: string };
+    };
   };
 }) {
   return {
@@ -406,14 +412,16 @@ export function toReciboVentaDto(r: {
       ? {
           id: r.venta.id,
           precioFinalUsd: decimalToString(r.venta.precioFinalUsd)!,
-          precioFinalBob: decimalToString(r.venta.precioFinalBob)!,
-          tipoCambio: decimalToString(r.venta.tipoCambio)!,
+          precioFinalBob: decimalToString(r.venta.precioFinalBob),
+          tipoCambio: decimalToString(r.venta.tipoCambio),
           fechaEntrega: r.venta.fechaEntrega.toISOString(),
           createdAt: r.venta.createdAt.toISOString(),
           cliente: r.venta.cliente,
           maquina: {
             nombre: r.venta.maquina.nombre,
             tipo: r.venta.maquina.tipo,
+            marca: r.venta.maquina.marca,
+            modelo: r.venta.maquina.modelo,
             proveedor: r.venta.maquina.proveedor?.nombre,
           },
         }

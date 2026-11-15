@@ -49,7 +49,7 @@ export class ReportesService {
     let totalVentasBob = 0;
     for (const v of ventas) {
       totalVentasUsd += Number(v.precioFinalUsd);
-      totalVentasBob += Number(v.precioFinalBob);
+      totalVentasBob += Number(v.precioFinalBob ?? 0);
     }
 
     return {
@@ -74,12 +74,14 @@ export class ReportesService {
         id: v.id,
         maquinaId: v.maquinaId,
         maquinaNombre: v.maquina.nombre,
+        maquinaMarca: v.maquina.marca,
+        maquinaModelo: v.maquina.modelo,
         maquinaTipo: v.maquina.tipo,
         proveedor: v.maquina.proveedor.nombre,
         clienteNombre: v.cliente.nombre,
         precioFinalUsd: decimalToString(v.precioFinalUsd)!,
-        precioFinalBob: decimalToString(v.precioFinalBob)!,
-        tipoCambio: decimalToString(v.tipoCambio)!,
+        precioFinalBob: decimalToString(v.precioFinalBob),
+        tipoCambio: decimalToString(v.tipoCambio),
         fechaEntrega: v.fechaEntrega.toISOString(),
         createdAt: v.createdAt.toISOString(),
       })),
@@ -88,6 +90,8 @@ export class ReportesService {
         return {
           id: m.id,
           nombre: m.nombre,
+          marca: m.marca,
+          modelo: m.modelo,
           tipo: m.tipo,
           estado: m.estado,
           proveedor: m.proveedor.nombre,
@@ -137,7 +141,7 @@ export class ReportesService {
       where: { responsableId: { not: null } },
       include: {
         responsable: true,
-        maquina: { select: { id: true, nombre: true, tipo: true, estado: true } },
+        maquina: { select: { id: true, nombre: true, tipo: true, marca: true, modelo: true, estado: true } },
         registradoPor: { select: { nombre: true } },
         aprobadoPor: { select: { nombre: true } },
       },
@@ -148,6 +152,8 @@ export class ReportesService {
       id: i.id,
       maquinaId: i.maquinaId,
       maquinaNombre: i.maquina.nombre,
+      maquinaMarca: i.maquina.marca,
+      maquinaModelo: i.maquina.modelo,
       maquinaTipo: i.maquina.tipo,
       maquinaEstado: i.maquina.estado,
       empleado: i.responsable
@@ -258,7 +264,7 @@ export class ReportesService {
           },
         },
         include: {
-          maquina: { select: { id: true, nombre: true } },
+          maquina: { select: { id: true, nombre: true, marca: true, modelo: true } },
           responsable: true,
         },
         orderBy: { fechaInicio: 'desc' },
@@ -275,7 +281,7 @@ export class ReportesService {
           ],
         },
         include: {
-          maquina: { select: { id: true, nombre: true } },
+          maquina: { select: { id: true, nombre: true, marca: true, modelo: true } },
           responsable: true,
           marcasCalendario: { orderBy: { fecha: 'asc' } },
           avances: { where: { registradoEn: { gte: inicio, lte: fin } } },
@@ -291,6 +297,8 @@ export class ReportesService {
         maquinas: Array<{
           maquinaId: string;
           nombre: string;
+          marca: string;
+          modelo: string;
           estado: string;
           area: string;
           fechaInicio: string | null;
@@ -314,6 +322,8 @@ export class ReportesService {
       grupo.maquinas.push({
         maquinaId: trabajo.maquinaId,
         nombre: trabajo.maquina.nombre,
+        marca: trabajo.maquina.marca,
+        modelo: trabajo.maquina.modelo,
         estado: trabajo.estadoIntervencion,
         area: trabajo.area,
         fechaInicio: trabajo.fechaInicio?.toISOString() ?? null,
@@ -337,6 +347,8 @@ export class ReportesService {
       enCurso: enCurso.map((row) => ({
         maquinaId: row.maquina.id,
         maquinaNombre: row.maquina.nombre,
+        maquinaMarca: row.maquina.marca,
+        maquinaModelo: row.maquina.modelo,
         empleadoNombre: row.responsable
           ? `${row.responsable.nombre} ${row.responsable.apellido}`.trim()
           : '—',

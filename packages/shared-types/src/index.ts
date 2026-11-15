@@ -286,8 +286,8 @@ export interface VentaDto {
   clienteId: string;
   cliente?: ClienteDto;
   precioFinalUsd: string;
-  precioFinalBob: string;
-  tipoCambio: string;
+  precioFinalBob?: string | null;
+  tipoCambio?: string | null;
   fechaEntrega: string;
   reciboVenta?: ReciboVentaResumenDto | null;
   createdAt: string;
@@ -301,11 +301,11 @@ export interface ReciboVentaDto {
   venta?: {
     id: string;
     precioFinalUsd: string;
-    precioFinalBob: string;
-    tipoCambio: string;
+    precioFinalBob?: string | null;
+    tipoCambio?: string | null;
     fechaEntrega: string;
     cliente: { nombre: string; telefono?: string | null };
-    maquina: { nombre: string; tipo: string; proveedor?: string };
+    maquina: { nombre: string; tipo: string; marca?: string | null; modelo?: string | null; proveedor?: string };
   };
 }
 
@@ -351,18 +351,22 @@ export interface ReporteResumenDto {
     id: string;
     maquinaId: string;
     maquinaNombre: string;
+    maquinaMarca?: string | null;
+    maquinaModelo?: string | null;
     maquinaTipo: string;
     proveedor: string;
     clienteNombre: string;
     precioFinalUsd: string;
-    precioFinalBob: string;
-    tipoCambio: string;
+    precioFinalBob?: string | null;
+    tipoCambio?: string | null;
     fechaEntrega: string;
     createdAt: string;
   }>;
   maquinas: Array<{
     id: string;
     nombre: string;
+    marca?: string | null;
+    modelo?: string | null;
     tipo: string;
     estado: EstadoMaquina;
     proveedor: string;
@@ -394,6 +398,8 @@ export interface ReporteTrabajoDto {
   id: string;
   maquinaId: string;
   maquinaNombre: string;
+  maquinaMarca?: string | null;
+  maquinaModelo?: string | null;
   maquinaTipo: string;
   maquinaEstado: EstadoMaquina;
   empleado: string;

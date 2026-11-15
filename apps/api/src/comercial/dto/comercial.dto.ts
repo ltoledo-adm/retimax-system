@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -134,6 +135,10 @@ export class UpdateVentaDto {
   tipoCambio?: string;
 
   @IsOptional()
+  @IsBoolean()
+  pagoEnDolares?: boolean;
+
+  @IsOptional()
   @IsDateString()
   fechaEntrega?: string;
 }
@@ -149,13 +154,19 @@ export class CreateVentaDto {
   @Matches(/^\d+(\.\d{1,2})?$/)
   precioFinalUsd!: string;
 
+  @IsOptional()
   @IsString()
   @Matches(/^\d+(\.\d{1,2})?$/)
-  precioFinalBob!: string;
+  precioFinalBob?: string;
 
+  @IsOptional()
   @IsString()
   @Matches(/^\d+(\.\d{1,4})?$/)
-  tipoCambio!: string;
+  tipoCambio?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  pagoEnDolares?: boolean;
 
   @IsDateString()
   fechaEntrega!: string;

@@ -238,14 +238,21 @@ export class ComercialService {
     const cliente = await this.prisma.cliente.findUnique({ where: { id: dto.clienteId } });
     if (!cliente) throw new BadRequestException('Cliente no encontrado');
 
+    const pagoEnDolares = dto.pagoEnDolares === true || !dto.tipoCambio?.trim();
+    if (!pagoEnDolares && !dto.precioFinalBob?.trim()) {
+      throw new BadRequestException(
+        'Si indica tipo de cambio, también debe indicar el precio en bolivianos',
+      );
+    }
+
     const venta = await this.prisma.$transaction(async (tx) => {
       const created = await tx.venta.create({
         data: {
           maquinaId: dto.maquinaId,
           clienteId: dto.clienteId,
           precioFinalUsd: new Prisma.Decimal(dto.precioFinalUsd),
-          precioFinalBob: new Prisma.Decimal(dto.precioFinalBob),
-          tipoCambio: new Prisma.Decimal(dto.tipoCambio),
+          precioFinalBob: pagoEnDolares ? null : new Prisma.Decimal(dto.precioFinalBob!),
+          tipoCambio: pagoEnDolares ? null : new Prisma.Decimal(dto.tipoCambio!),
           fechaEntrega: new Date(dto.fechaEntrega),
         },
         include: {
@@ -264,8 +271,8 @@ export class ComercialService {
         data: {
           estado: EstadoMaquina.VENDIDA,
           precioVentaUsd: new Prisma.Decimal(dto.precioFinalUsd),
-          precioVentaBob: new Prisma.Decimal(dto.precioFinalBob),
-          tipoCambioUsado: new Prisma.Decimal(dto.tipoCambio),
+          precioVentaBob: pagoEnDolares ? null : new Prisma.Decimal(dto.precioFinalBob!),
+          tipoCambioUsado: pagoEnDolares ? null : new Prisma.Decimal(dto.tipoCambio!),
         },
       });
 
@@ -291,8 +298,18 @@ export class ComercialService {
       data: {
         clienteId: dto.clienteId,
         precioFinalUsd: dto.precioFinalUsd ? new Prisma.Decimal(dto.precioFinalUsd) : undefined,
-        precioFinalBob: dto.precioFinalBob ? new Prisma.Decimal(dto.precioFinalBob) : undefined,
-        tipoCambio: dto.tipoCambio ? new Prisma.Decimal(dto.tipoCambio) : undefined,
+        precioFinalBob:
+          dto.pagoEnDolares === true
+            ? null
+            : dto.precioFinalBob
+              ? new Prisma.Decimal(dto.precioFinalBob)
+              : undefined,
+        tipoCambio:
+          dto.pagoEnDolares === true
+            ? null
+            : dto.tipoCambio
+              ? new Prisma.Decimal(dto.tipoCambio)
+              : undefined,
         fechaEntrega: dto.fechaEntrega ? new Date(dto.fechaEntrega) : undefined,
       },
       include: {
@@ -333,6 +350,8 @@ export class ComercialService {
         maquina: {
           nombre: recibo.venta.maquina.nombre,
           tipo: recibo.venta.maquina.tipo,
+          marca: recibo.venta.maquina.marca,
+          modelo: recibo.venta.maquina.modelo,
           proveedor: recibo.venta.maquina.proveedor,
         },
       },
@@ -432,8 +451,8 @@ export class ComercialService {
     maquinaId: string;
     clienteId: string;
     precioFinalUsd: Prisma.Decimal;
-    precioFinalBob: Prisma.Decimal;
-    tipoCambio: Prisma.Decimal;
+    precioFinalBob: Prisma.Decimal | null;
+    tipoCambio: Prisma.Decimal | null;
     fechaEntrega: Date;
     createdAt: Date;
     cliente: { id: string; nombre: string; telefono: string | null; notas: string | null; createdAt: Date };
@@ -472,8 +491,8 @@ export class ComercialService {
         createdAt: venta.cliente.createdAt.toISOString(),
       },
       precioFinalUsd: decimalToString(venta.precioFinalUsd)!,
-      precioFinalBob: decimalToString(venta.precioFinalBob)!,
-      tipoCambio: decimalToString(venta.tipoCambio)!,
+      precioFinalBob: decimalToString(venta.precioFinalBob),
+      tipoCambio: decimalToString(venta.tipoCambio),
       fechaEntrega: venta.fechaEntrega.toISOString(),
       reciboVenta: venta.reciboVenta
         ? {
